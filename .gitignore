@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+tsconfig.tsbuildinfo
+data/gallery.json
+public/gallery/*
+!public/gallery/.gitkeep
+*.log
+.env*
+.claude/settings.local.json
