@@ -38,16 +38,16 @@ function png(w, h, rgb) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-// ---- Fixtures: 2 paintings per year across 3 years. --------------------------
-// 2023 order matters: ochre order 1 -> screen RIGHT (x 913), harbor order 2 ->
+// ---- Fixtures: 2 paintings per year across 3 years (2025/2026/2027). ---------
+// 2025 order matters: ochre order 1 -> screen RIGHT (x 913), harbor order 2 ->
 // screen LEFT (x 532) — hover/click coords below assume this layout.
 const YEARS = [
-  ['study-in-ochre.png', [166, 116, 50], 'Study In Ochre', 2023, 1],
-  ['harbor-morning.png', [38, 54, 84], 'Harbor Morning', 2023, 2],
-  ['quiet-field.png', [122, 138, 106], 'Quiet Field', 2024, 3],
-  ['night-window.png', [58, 62, 84], 'Night Window', 2024, 4],
-  ['north-light.png', [176, 176, 166], 'North Light', 2025, 5],
-  ['paper-stack.png', [150, 132, 112], 'Paper Stack', 2025, 6],
+  ['study-in-ochre.png', [166, 116, 50], 'Study In Ochre', 2025, 1],
+  ['harbor-morning.png', [38, 54, 84], 'Harbor Morning', 2025, 2],
+  ['quiet-field.png', [122, 138, 106], 'Quiet Field', 2026, 3],
+  ['night-window.png', [58, 62, 84], 'Night Window', 2026, 4],
+  ['north-light.png', [176, 176, 166], 'North Light', 2027, 5],
+  ['paper-stack.png', [150, 132, 112], 'Paper Stack', 2027, 6],
 ];
 function seedFixtures() {
   const galleryDir = path.join(__dirname, 'public', 'gallery');
@@ -66,10 +66,11 @@ function seedFixtures() {
 }
 seedFixtures();
 
+let browser = null;
 (async () => {
   const logs = [];
   const failed = [];
-  const browser = await chromium.launch({
+  browser = await chromium.launch({
     args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
   });
 
@@ -79,8 +80,10 @@ seedFixtures();
   page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
   page.on('requestfailed', (r) => failed.push(`${r.url()} :: ${r.failure()?.errorText}`));
 
-  await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
-  await page.waitForTimeout(3000);
+  await page.goto('http://localhost:3000', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  // Button enables only when all textures loaded (useProgress) — real ready signal.
+  await page.waitForSelector('.entrance-btn:not([disabled])', { timeout: 180000 });
+  await page.waitForTimeout(1000);
   await shot(page, '01-entrance');
   const hudBefore = await page.locator('.hud').count();
 
@@ -207,8 +210,8 @@ seedFixtures();
   mp.on('console', (m) => logs.push(`[mobile:${m.type()}] ${m.text()}`));
   mp.on('pageerror', (e) => logs.push(`[mobile:pageerror] ${e.message}`));
   await mp.goto('http://localhost:3000', { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await mp.locator('.entrance-btn').waitFor({ state: 'visible', timeout: 60000 });
-  await mp.waitForTimeout(6000);
+  await mp.waitForSelector('.entrance-btn:not([disabled])', { timeout: 180000 });
+  await mp.waitForTimeout(2000);
   await mp.click('.entrance-btn', { timeout: 30000 });
   await mp.waitForTimeout(3000);
   await shot(mp, '12-mobile-entered');
@@ -227,4 +230,9 @@ seedFixtures();
   }, null, 2));
 
   await browser.close();
-})().catch((e) => { console.error('E2E FAILED:', e); process.exit(1); });
+})().catch(async (e) => {
+  console.error('E2E FAILED:', e);
+  // Never leak a headless browser on failure — orphans starve the next run.
+  if (browser) await browser.close().catch(() => {});
+  process.exit(1);
+});
