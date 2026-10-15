@@ -10,7 +10,8 @@ const os = require('os');
 
 const OUT = path.join(os.tmpdir(), 'vg-verify');
 fs.mkdirSync(OUT, { recursive: true });
-const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`) });
+const shot = (p, name) =>
+  p.screenshot({ path: path.join(OUT, `${name}.png`), timeout: 90000 });
 const unlock = (p) => p.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
 
 // Screen x for a point at world angle from screen center (perspective-correct).
@@ -71,7 +72,9 @@ let browser = null;
   const logs = [];
   const failed = [];
   browser = await chromium.launch({
-    args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
+    // Prefer real GPU (ANGLE D3D11) — the floor reflector is ~20x slower on
+    // software GL, starving screenshot capture. Falls back to swiftshader.
+    args: ['--use-angle=d3d11', '--enable-unsafe-swiftshader'],
   });
 
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });

@@ -8,6 +8,13 @@ import { CORR_L, R, roomCenterX } from '../../utils/layout';
 
 const _target = new THREE.Vector3();
 
+// Room light fade by camera distance — shared with Beams.tsx.
+export function roomCameraFade(camera: THREE.Camera, index: number): number {
+  const dx = camera.position.x - roomCenterX(index);
+  const dz = camera.position.z;
+  return 1 - THREE.MathUtils.smoothstep(Math.hypot(dx, dz), 12, 30);
+}
+
 function RoomLighting({
   index,
   groupRef,
@@ -99,10 +106,7 @@ export function Lighting({ roomCount }: LightingProps) {
     for (let i = 0; i < roomCount; i++) {
       const g = roomGroups.current[i];
       if (!g) continue;
-      const dx = camera.position.x - roomCenterX(i);
-      const dz = camera.position.z;
-      const dist = Math.hypot(dx, dz);
-      const fade = 1 - THREE.MathUtils.smoothstep(dist, 12, 30);
+      const fade = roomCameraFade(camera, i);
       g.traverse((o) => {
         const light = o as THREE.Light;
         if (!light.isLight) return;

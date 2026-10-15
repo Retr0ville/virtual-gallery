@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { CEIL_CORR, CORR_L, CORR_W, R, roomCenterX } from '../../utils/layout';
-import { CEIL_COLOR, FLOOR_COLOR, TRIM_COLOR, WALL_COLOR } from './Room';
+import { CEIL_COLOR, TRIM_COLOR, WALL_COLOR } from './Room';
 
 interface CorridorProps {
   index: number; // corridor between room index and index + 1
@@ -15,18 +15,7 @@ export function Corridor({ index }: CorridorProps) {
 
   return (
     <group position={[x0, 0, 0]}>
-      {/* floor — slightly below room floors, extends under both room discs */}
-      <mesh rotation-x={-Math.PI / 2} position={[length / 2, -0.0005, 0]} receiveShadow>
-        <planeGeometry args={[length + 0.4, CORR_W]} />
-        <meshPhysicalMaterial
-          color={FLOOR_COLOR}
-          roughness={0.3}
-          clearcoat={0.5}
-          clearcoatRoughness={0.4}
-          metalness={0}
-          envMapIntensity={0.4}
-        />
-      </mesh>
+      {/* floor is part of the merged reflector mesh in GalleryFloor.tsx */}
 
       {/* ceiling — same faint self-luminance as rotunda ceilings */}
       <mesh rotation-x={Math.PI / 2} position={[length / 2, CEIL_CORR, 0]}>

@@ -8,7 +8,9 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
 import { YearRoom, GalleryItem } from '../../utils/media';
 import { RoomArtworks } from './Artwork';
+import { Beams } from './Beams';
 import { Corridor } from './Corridor';
+import { GalleryFloor } from './GalleryFloor';
 import { Lighting } from './Lighting';
 import { LookDelta, MoveInput, MoveMode, Player } from './Player';
 import { Room } from './Room';
@@ -78,6 +80,8 @@ export default function GalleryCanvas({
         <hemisphereLight args={['#ffffff', '#4a4a48', 0.5]} />
         <EnvSetup />
         <Lighting roomCount={rooms.length} />
+        <Beams roomCount={rooms.length} />
+        <GalleryFloor roomCount={rooms.length} />
 
         <Suspense fallback={null}>
           {rooms.map((room, i) => (

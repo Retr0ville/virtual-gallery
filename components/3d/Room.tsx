@@ -13,15 +13,6 @@ export const TRIM_COLOR = '#1b1b1e';
 
 const SEGMENTS_PER_RAD = 26;
 
-const FLOOR_PROPS = {
-  color: FLOOR_COLOR,
-  roughness: 0.3,
-  clearcoat: 0.5,
-  clearcoatRoughness: 0.4,
-  metalness: 0,
-  envMapIntensity: 0.4,
-} as const;
-
 function Portal({ x }: { x: number }) {
   return (
     <group position={[x, 0, 0]}>
@@ -70,11 +61,7 @@ export function Room({ index, year, roomCount }: RoomProps) {
 
   return (
     <group position={[cx, 0, 0]}>
-      {/* floor */}
-      <mesh rotation-x={-Math.PI / 2} receiveShadow>
-        <circleGeometry args={[R, 96]} />
-        <meshPhysicalMaterial {...FLOOR_PROPS} />
-      </mesh>
+      {/* floor is a single merged mesh in GalleryFloor.tsx (reflector) */}
 
       {/* ceiling — faint self-luminance (museum ceilings glow softly;
           down-facing normals receive almost no direct light otherwise) */}

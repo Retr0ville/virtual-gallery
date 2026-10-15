@@ -55,6 +55,23 @@ export function makeYearPlateTexture(year: number): THREE.CanvasTexture {
   return finalize(canvas, 4);
 }
 
+// Soft spotlight shaft for beam cones. Apex fully opaque, fading out toward
+// the wide base (cylinder v=1 is the top/apex). Material opacity + additive
+// blending do the rest.
+export function makeBeamTexture(): THREE.CanvasTexture {
+  const w = 64;
+  const h = 256;
+  const { canvas, ctx } = makeCanvas(w, h);
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+  g.addColorStop(0.72, 'rgba(255,255,255,0.22)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  return finalize(canvas, 4);
+}
+
 // Circular floor medallion with the year, subtle ring. Transparent background.
 export function makeMedallionTexture(year: number): THREE.CanvasTexture {
   const s = 1024;
