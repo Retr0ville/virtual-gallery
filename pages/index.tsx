@@ -179,7 +179,11 @@ export default function Home() {
           onChanged={loadItems}
         />
 
-        <Entrance onEnter={handleEnter} onAdminLogin={handleAdminLogin} />
+        <Entrance
+          onEnter={handleEnter}
+          onAdminLogin={handleAdminLogin}
+          adminAuthed={adminAuthed}
+        />
 
         {error && (
           <button className="app-error" onClick={loadItems}>

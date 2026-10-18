@@ -7,9 +7,10 @@ import { FormEvent, useEffect, useState } from 'react';
 interface EntranceProps {
   onEnter: () => void;
   onAdminLogin: () => void;
+  adminAuthed: boolean;
 }
 
-export function Entrance({ onEnter, onAdminLogin }: EntranceProps) {
+export function Entrance({ onEnter, onAdminLogin, adminAuthed }: EntranceProps) {
   const { progress, active } = useProgress();
   const [settled, setSettled] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -105,7 +106,10 @@ export function Entrance({ onEnter, onAdminLogin }: EntranceProps) {
 
       <button
         className="entrance-admin no-magnetic"
-        onClick={() => setLoginOpen(true)}
+        onClick={() => {
+          if (adminAuthed) onAdminLogin();
+          else setLoginOpen(true);
+        }}
         aria-label="Private admin access"
       >
         Simi?
