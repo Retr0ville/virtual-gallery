@@ -14,6 +14,7 @@ import {
   ceilingAt,
   currentRoomIndex,
   insideAnyRegion,
+  insideFlightBounds,
 } from '../../utils/layout';
 
 export type MoveMode = 'walk' | 'fly';
@@ -30,7 +31,7 @@ export interface LookDelta {
 
 const WALK_SPEED = 4.2;
 const SPRINT_SPEED = 6.0;
-const FLY_SPEED = 4.5;
+const FLY_SPEED = 6.5;
 const FLY_VERTICAL_SPEED = 3.0;
 const ACCEL = 10;
 const LOOK_SENSITIVITY = 0.0022;
@@ -169,15 +170,18 @@ export function Player({
 
     const pos = camera.position;
 
+    // Walk is blocked by furniture and door leaves; fly only by the walls.
+    const isWalk = modeRef.current === 'walk';
+    const inBounds = isWalk ? insideAnyRegion : insideFlightBounds;
+
     // Layout changed under the player (a year was removed from the manifest)
     // — snap back to the spawn instead of freezing outside all regions.
-    if (!insideAnyRegion(regions, pos.x, pos.z)) {
+    if (!inBounds(regions, pos.x, pos.z)) {
       pos.set(SPAWN_X, EYE, SPAWN_Z);
       velocity.current.set(0, 0, 0);
       return;
     }
 
-    const isWalk = modeRef.current === 'walk';
     const k = keys.current;
     const move = inputRef.current;
 
@@ -210,7 +214,9 @@ export function Player({
       let vy = 0;
       if (k.has('Space')) vy += FLY_VERTICAL_SPEED;
       if (sprint) vy -= FLY_VERTICAL_SPEED;
-      _desired.y = vy;
+      // Add to the pitch-directed component instead of replacing it, so W
+      // while looking up/down actually climbs/dives like free flight.
+      _desired.y += vy;
     }
 
     const v = velocity.current;
@@ -221,10 +227,10 @@ export function Player({
     const dz = v.z * dt;
     let nx = pos.x + dx;
     let nz = pos.z + dz;
-    if (!insideAnyRegion(regions, nx, nz)) {
-      if (insideAnyRegion(regions, pos.x + dx, pos.z)) {
+    if (!inBounds(regions, nx, nz)) {
+      if (inBounds(regions, pos.x + dx, pos.z)) {
         nz = pos.z;
-      } else if (insideAnyRegion(regions, pos.x, pos.z + dz)) {
+      } else if (inBounds(regions, pos.x, pos.z + dz)) {
         nx = pos.x;
       } else {
         nx = pos.x;

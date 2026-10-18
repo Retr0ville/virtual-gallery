@@ -322,6 +322,15 @@ export function insideAnyRegion(regions: Region[], x: number, z: number): boolea
   return ok;
 }
 
+// Flight bounds: only the outer walls count. Interior blockers (the ring
+// table, open door leaves) don't constrain a flying camera.
+export function insideFlightBounds(regions: Region[], x: number, z: number): boolean {
+  for (const r of regions) {
+    if ((r.kind === 'circle' || r.kind === 'rect') && insideRegion(r, x, z)) return true;
+  }
+  return false;
+}
+
 // Ceiling height at a point: corridors are lower than rotundas.
 export function ceilingAt(x: number, z: number, roomCount: number): number {
   for (let i = 0; i < roomCount - 1; i++) {

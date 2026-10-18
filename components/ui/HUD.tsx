@@ -26,9 +26,11 @@ export function HUD({
   const [hintVisible, setHintVisible] = useState(true);
 
   useEffect(() => {
+    if (!entered) return;
+    setHintVisible(true);
     const t = setTimeout(() => setHintVisible(false), 8000);
     return () => clearTimeout(t);
-  }, []);
+  }, [entered, mode]);
 
   if (!entered) return null;
 
