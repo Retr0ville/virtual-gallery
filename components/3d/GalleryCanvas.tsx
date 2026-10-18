@@ -116,14 +116,17 @@ function ClickNavigator({
       const artwork = tagged?.userData.artwork as GalleryItem | undefined;
 
       const dest = new THREE.Vector3();
+      let lookAt: THREE.Vector3 | undefined;
       let onArrive: (() => void) | undefined;
 
       if (artwork && tagged) {
         const normal = new THREE.Vector3(0, 0, 1)
           .applyQuaternion(tagged.getWorldQuaternion(new THREE.Quaternion()))
           .normalize();
-        tagged.getWorldPosition(dest).addScaledVector(normal, 1.6);
+        const center = tagged.getWorldPosition(new THREE.Vector3());
+        dest.copy(center).addScaledVector(normal, 1.6);
         dest.y = EYE;
+        lookAt = center;
         const item = artwork;
         onArrive = () => onArtworkSelect(item);
       } else {
@@ -158,7 +161,7 @@ function ClickNavigator({
           : insideFlightBounds(regions, dest.x, dest.z);
       if (!reachable) return;
 
-      flyToRef.current = { position: dest, onArrive };
+      flyToRef.current = { position: dest, lookAt, onArrive };
     };
 
     el.addEventListener('click', handleClick);

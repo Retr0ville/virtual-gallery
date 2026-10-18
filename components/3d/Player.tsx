@@ -23,6 +23,7 @@ export type MoveMode = 'walk' | 'fly';
 // optional callback on arrival (used to open the artwork viewer).
 export interface FlyTarget {
   position: THREE.Vector3;
+  lookAt?: THREE.Vector3;
   onArrive?: () => void;
 }
 
@@ -50,6 +51,8 @@ const _dir = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _desired = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+const _lookMatrix = new THREE.Matrix4();
+const _lookQuat = new THREE.Quaternion();
 
 interface PlayerProps {
   roomCount: number;
@@ -185,8 +188,21 @@ export function Player({
     if (flight) {
       pos.lerp(flight.position, 1 - Math.exp(-5 * dt));
       velocity.current.set(0, 0, 0);
+
+      // Turn to face the destination (artwork clicks aim at the frame) so the
+      // viewer opens on a head-on view.
+      if (flight.lookAt) {
+        _lookMatrix.lookAt(pos, flight.lookAt, UP);
+        _lookQuat.setFromRotationMatrix(_lookMatrix);
+        camera.quaternion.slerp(_lookQuat, 1 - Math.exp(-7 * dt));
+      }
+
       if (pos.distanceToSquared(flight.position) < 0.0036) {
         pos.copy(flight.position);
+        if (flight.lookAt) {
+          _lookMatrix.lookAt(flight.position, flight.lookAt, UP);
+          camera.quaternion.setFromRotationMatrix(_lookMatrix);
+        }
         flyToRef.current = null;
         flight.onArrive?.();
       }
