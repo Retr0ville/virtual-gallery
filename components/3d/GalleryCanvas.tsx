@@ -96,7 +96,9 @@ function ClickNavigator({
 
     const handleClick = (event: MouseEvent) => {
       if (event.button !== 0) return;
-      const locked = document.pointerLockElement === el;
+      // R3F connects events to its wrapper div and drei locks THAT element,
+      // not gl.domElement — so don't compare against the canvas.
+      const locked = document.pointerLockElement !== null;
       // Document-level mousedown also sees HUD/panel clicks while unlocked;
       // only canvas presses should travel.
       if (!isTouch && !locked && event.target !== el) return;
