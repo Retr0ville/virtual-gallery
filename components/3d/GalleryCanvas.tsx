@@ -63,6 +63,7 @@ function ShadowBake() {
 interface ClickNavigatorProps {
   enabled: boolean;
   mode: MoveMode;
+  isTouch: boolean;
   roomCount: number;
   lockedCorridors: readonly boolean[];
   flyToRef: MutableRefObject<FlyTarget | null>;
@@ -75,6 +76,7 @@ interface ClickNavigatorProps {
 function ClickNavigator({
   enabled,
   mode,
+  isTouch,
   roomCount,
   lockedCorridors,
   flyToRef,
@@ -93,8 +95,12 @@ function ClickNavigator({
     const regions = buildRegions(roomCount, lockedCorridors);
 
     const handleClick = (event: MouseEvent) => {
-      const rect = el.getBoundingClientRect();
+      if (event.button !== 0) return;
       const locked = document.pointerLockElement === el;
+      // Document-level mousedown also sees HUD/panel clicks while unlocked;
+      // only canvas presses should travel.
+      if (!isTouch && !locked && event.target !== el) return;
+      const rect = el.getBoundingClientRect();
       pointer.set(
         locked ? 0 : ((event.clientX - rect.left) / rect.width) * 2 - 1,
         locked ? 0 : -((event.clientY - rect.top) / rect.height) * 2 + 1
@@ -185,9 +191,14 @@ function ClickNavigator({
       flyToRef.current = { position: dest, lookAt, onArrive };
     };
 
-    el.addEventListener('click', handleClick);
-    return () => el.removeEventListener('click', handleClick);
-  }, [enabled, mode, roomCount, lockedCorridors, flyToRef, onArtworkSelect, onToggleSound, camera, scene, gl]);
+    // Chrome doesn't emit `click` while the pointer is locked, so desktop
+    // listens on document mousedown (locked events may target the body).
+    // Touch keeps click so drag-to-look doesn't travel on every touch start.
+    const target: EventTarget = isTouch ? el : document;
+    const type = isTouch ? 'click' : 'mousedown';
+    target.addEventListener(type, handleClick as EventListener);
+    return () => target.removeEventListener(type, handleClick as EventListener);
+  }, [enabled, mode, isTouch, roomCount, lockedCorridors, flyToRef, onArtworkSelect, onToggleSound, camera, scene, gl]);
 
   return null;
 }
@@ -259,6 +270,7 @@ export default function GalleryCanvas({
         <ClickNavigator
           enabled={enabled}
           mode={mode}
+          isTouch={isTouch}
           roomCount={rooms.length}
           lockedCorridors={lockedCorridors}
           flyToRef={flyToRef}
