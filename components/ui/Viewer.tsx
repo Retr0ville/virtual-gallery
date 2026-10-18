@@ -79,13 +79,26 @@ export function Viewer({ item, items, onClose, onNext, onPrev }: ViewerProps) {
     0,
     items.findIndex((i) => i.publicId === item.publicId)
   );
-  const radius = vw * 1.5;
+  const count = items.length;
   const halfSlot = (vw * SLOT_VW) / 2;
   const neighbourHalf = halfSlot * INACTIVE_SCALE;
+  // Slides sit tangent to a ring. Default spacing from the sliver target; cap
+  // it at one full turn so the ring can't wrap back over itself (with enough
+  // prints the old fixed step reached ~11 rad total and overlapped images).
+  const baseRadius = vw * 1.5;
   const target = vw / 2 - Math.max(MIN_SLIVER, vw * SLIVER_VW);
-  const step =
-    Math.asin(Math.min(1, target / Math.hypot(radius, neighbourHalf))) +
-    Math.atan2(neighbourHalf, radius);
+  const desiredStep =
+    Math.asin(Math.min(1, target / Math.hypot(baseRadius, neighbourHalf))) +
+    Math.atan2(neighbourHalf, baseRadius);
+  const maxStep = (Math.PI * 2) / Math.max(count, 2);
+  const step = Math.min(desiredStep, maxStep);
+  // Once the step is compressed, grow the ring until an adjacent (scaled)
+  // slide's near edge projects outside the active print — no overlap.
+  const minRadius =
+    count > 1
+      ? ((halfSlot + neighbourHalf * Math.cos(step)) / Math.sin(step)) * 1.01
+      : baseRadius;
+  const radius = Math.max(baseRadius, minRadius);
   // Rooms are ordered by year, so an item's accent follows its year's room.
   const yearOrder = Array.from(new Set(items.map((i) => i.year))).sort((a, b) => a - b);
   const accentFor = (it: GalleryItem) =>
