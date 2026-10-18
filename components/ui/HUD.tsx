@@ -1,9 +1,8 @@
-// HUD overlay — wordmark, room year, hover tooltip, controls hint, mode + admin buttons.
+// HUD overlay — wordmark, room year, hover tooltip, controls hint, mode toggle.
 
 import { useEffect, useState } from 'react';
 import { GalleryItem } from '../../utils/media';
 import { MoveMode } from '../3d/Player';
-import { AdjustIcon } from './Icons';
 
 interface HUDProps {
   mode: MoveMode;
@@ -12,9 +11,7 @@ interface HUDProps {
   roomItemCount: number;
   entered: boolean;
   isTouch: boolean;
-  canManage: boolean;
   onToggleMode: () => void;
-  onOpenAdmin: () => void;
 }
 
 export function HUD({
@@ -24,9 +21,7 @@ export function HUD({
   roomItemCount,
   entered,
   isTouch,
-  canManage,
   onToggleMode,
-  onOpenAdmin,
 }: HUDProps) {
   const [hintVisible, setHintVisible] = useState(true);
 
@@ -38,8 +33,8 @@ export function HUD({
   if (!entered) return null;
 
   const hint =
-    roomItemCount === 0 && canManage
-      ? 'No artworks yet — open the panel to upload'
+    roomItemCount === 0
+      ? 'No artworks yet'
       : mode === 'walk'
         ? 'WASD move · Shift sprint · F fly · Esc release cursor'
         : 'WASD move · Space up · Shift down · F walk · Esc release cursor';
@@ -65,16 +60,6 @@ export function HUD({
         <button className="hud-chip magnet-soft" onClick={onToggleMode}>
           {mode === 'walk' ? 'Fly' : 'Walk'}
         </button>
-        {canManage && (
-          <button
-            className="icon-btn magnet-soft"
-            onClick={onOpenAdmin}
-            aria-label="Manage gallery"
-            title="Manage gallery"
-          >
-            <AdjustIcon />
-          </button>
-        )}
       </div>
     </div>
   );

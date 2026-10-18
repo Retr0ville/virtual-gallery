@@ -121,13 +121,15 @@ export default function GalleryCanvas({
             <group key={room.year}>
               <Room index={i} year={room.year} roomCount={rooms.length} theme={themeForRoom(i)} />
               <Centerpiece index={i} year={room.year} theme={themeForRoom(i)} />
-              <RoomArtworks
-                roomIndex={i}
-                roomCount={rooms.length}
-                items={room.items}
-                onSelect={onArtworkSelect}
-                onHover={onArtworkHover}
-              />
+              <Suspense fallback={null}>
+                <RoomArtworks
+                  roomIndex={i}
+                  roomCount={rooms.length}
+                  items={room.items}
+                  onSelect={onArtworkSelect}
+                  onHover={onArtworkHover}
+                />
+              </Suspense>
             </group>
           ))}
 

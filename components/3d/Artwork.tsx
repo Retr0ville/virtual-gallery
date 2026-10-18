@@ -2,7 +2,7 @@
 // hover highlight, click to open viewer. No 3D labels; HUD tooltip handles titles.
 
 import { RoundedBox, useTexture } from '@react-three/drei';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import {
   ARTWORK_CENTER_Y,
@@ -191,16 +191,19 @@ function ArtworkWall({ roomIndex, roomCount, items, onSelect, onHover }: RoomArt
         const slot = slots[i];
         if (!slot) return null;
         return (
-          <Artwork
-            key={item.publicId}
-            item={item}
-            width={slot.width}
-            height={slot.height}
-            position={[slot.x, ARTWORK_CENTER_Y, slot.z]}
-            rotationY={slot.rotationY}
-            onSelect={onSelect}
-            onHover={onHover}
-          />
+          // Own boundary: the full-res texture of one artwork must never
+          // suspend the rest of the room while it decodes.
+          <Suspense key={item.publicId} fallback={null}>
+            <Artwork
+              item={item}
+              width={slot.width}
+              height={slot.height}
+              position={[slot.x, ARTWORK_CENTER_Y, slot.z]}
+              rotationY={slot.rotationY}
+              onSelect={onSelect}
+              onHover={onHover}
+            />
+          </Suspense>
         );
       })}
     </>

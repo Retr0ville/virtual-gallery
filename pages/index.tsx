@@ -14,6 +14,7 @@ import { CURRENT_YEAR, GalleryItem, YearRoom, fetchMedia, groupByYear } from '..
 
 export default function Home() {
   const [items, setItems] = useState<GalleryItem[] | null>(null);
+  const [sceneItems, setSceneItems] = useState<GalleryItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [entered, setEntered] = useState(false);
   const [mode, setMode] = useState<MoveMode>('walk');
@@ -27,6 +28,9 @@ export default function Home() {
   const inputRef = useRef<MoveInput>({ x: 0, z: 0 });
   const lookDeltaRef = useRef<LookDelta>({ dx: 0, dy: 0 });
   const controlsRef = useRef<PointerLockControlsImpl | null>(null);
+  // Scene data is applied only when the admin panel is closed, so uploads
+  // don't re-render/re-suspend the 3D subtree mid-session.
+  const adminOpenRef = useRef(false);
 
   useEffect(() => {
     setIsTouch(window.matchMedia('(pointer: coarse)').matches);
@@ -40,14 +44,22 @@ export default function Home() {
   }, []);
 
   const handleAdminLogin = useCallback(() => {
+    adminOpenRef.current = true;
     setAdminAuthed(true);
     setAdminOpen(true);
+  }, []);
+
+  const handleAdminClose = useCallback(() => {
+    adminOpenRef.current = false;
+    // Reload so the 3D scene picks up uploads/edits; no live scene updates.
+    window.location.reload();
   }, []);
 
   const loadItems = useCallback(async () => {
     try {
       const list = await fetchMedia();
       setItems(list);
+      if (!adminOpenRef.current) setSceneItems(list);
       setError(null);
     } catch {
       setError('Failed to load gallery');
@@ -59,9 +71,9 @@ export default function Home() {
   }, [loadItems]);
 
   const rooms = useMemo<YearRoom[]>(() => {
-    const grouped = groupByYear(items ?? []);
+    const grouped = groupByYear(sceneItems ?? []);
     return grouped.length > 0 ? grouped : [{ year: CURRENT_YEAR, items: [] }];
-  }, [items]);
+  }, [sceneItems]);
 
   const flatItems = useMemo(() => rooms.flatMap((r) => r.items), [rooms]);
 
@@ -149,9 +161,7 @@ export default function Home() {
           roomItemCount={activeRoom?.items.length ?? 0}
           entered={entered}
           isTouch={isTouch}
-          canManage={adminAuthed}
           onToggleMode={handleModeToggle}
-          onOpenAdmin={() => setAdminOpen(true)}
         />
 
         {isTouch && (
@@ -175,7 +185,7 @@ export default function Home() {
         <AdminPanel
           open={adminOpen}
           items={items ?? []}
-          onClose={() => setAdminOpen(false)}
+          onClose={handleAdminClose}
           onChanged={loadItems}
         />
 
