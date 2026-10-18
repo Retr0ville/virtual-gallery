@@ -1,7 +1,7 @@
 // Artwork — RoundedBox frame + print plane, real aspect ratio from texture,
 // hover highlight, click to open viewer. No 3D labels; HUD tooltip handles titles.
 
-import { RoundedBox, useTexture } from '@react-three/drei';
+import { RoundedBox } from '@react-three/drei';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import {
@@ -18,6 +18,65 @@ const FRAME_HOVER_EMISSIVE = '#3a3a42';
 const LIGHT_BRASS = '#b08d4f';
 const PICTURE_LIGHT = '#fff1d6';
 
+// ---- Safe texture loading ----
+// A missing/404 upload must not reject through Suspense and take the whole
+// app down. Each URL loads once into a shared cache; failures resolve to a
+// neutral placeholder so the frame still renders (1×1 → aspect fallback 1:1).
+
+type TextureEntry = THREE.Texture | Promise<THREE.Texture>;
+
+const placeholderTexture = new THREE.DataTexture(
+  new Uint8Array([214, 208, 198, 255]),
+  1,
+  1,
+  THREE.RGBAFormat
+);
+placeholderTexture.colorSpace = THREE.SRGBColorSpace;
+placeholderTexture.needsUpdate = true;
+
+const textureLoader = new THREE.TextureLoader();
+const textureCache = new Map<string, TextureEntry>();
+
+function textureEntry(url: string): TextureEntry {
+  const cached = textureCache.get(url);
+  if (cached) return cached;
+  const promise = new Promise<THREE.Texture>((resolve) => {
+    textureLoader.load(
+      url,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = 8;
+        textureCache.set(url, texture);
+        resolve(texture);
+      },
+      undefined,
+      () => {
+        // 404, CORS, decode failure — blank print instead of a crash.
+        textureCache.set(url, placeholderTexture);
+        resolve(placeholderTexture);
+      }
+    );
+  });
+  textureCache.set(url, promise);
+  return promise;
+}
+
+function useSafeTexture(url: string): THREE.Texture {
+  const entry = textureEntry(url);
+  if (entry instanceof Promise) throw entry;
+  return entry;
+}
+
+function useSafeTextures(urls: string[]): THREE.Texture[] {
+  const pending: Array<Promise<THREE.Texture>> = [];
+  for (const url of urls) {
+    const entry = textureEntry(url);
+    if (entry instanceof Promise) pending.push(entry);
+  }
+  if (pending.length > 0) throw Promise.all(pending);
+  return urls.map((url) => textureEntry(url) as THREE.Texture);
+}
+
 interface ArtworkProps {
   item: GalleryItem;
   width: number;
@@ -28,7 +87,7 @@ interface ArtworkProps {
 }
 
 export function Artwork({ item, width, height, position, rotationY, onHover }: ArtworkProps) {
-  const texture = useTexture(item.url);
+  const texture = useSafeTexture(item.url);
   const [hovered, setHovered] = useState(false);
   const lightTarget = useMemo(() => new THREE.Object3D(), []);
 
@@ -166,7 +225,7 @@ function ArtworkWall({ roomIndex, roomCount, items, onHover }: RoomArtworksProps
       ),
     [items]
   );
-  const textures = useTexture(urls) as THREE.Texture[];
+  const textures = useSafeTextures(urls);
 
   const slots = useMemo(() => {
     const aspects = textures.map((texture) => {
