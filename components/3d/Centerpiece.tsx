@@ -11,21 +11,29 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { createTextDerivedMaterial } from 'troika-three-text';
-import { TABLE_INNER, TABLE_OUTER, TABLE_SLIT, SPAWN_X, SPAWN_Z, roomCenterX } from '../../utils/layout';
+import {
+  AIR_SQUASH,
+  HELIUM_N,
+  TABLE_H,
+  TABLE_INNER,
+  TABLE_OUTER,
+  TABLE_SLIT,
+  SPAWN_X,
+  SPAWN_Z,
+  computeBalloons,
+  hash01,
+  roomCenterX,
+  turntableSpot,
+} from '../../utils/layout';
 import { makeMedallionTexture, makeMoteTexture } from '../../utils/textures';
 import { RoomTheme } from '../../utils/themes';
 import { roomCameraFade } from './Lighting';
 import { Turntable } from './Turntable';
 
-const TABLE_H = 0.78; // glass height — seated-table height
 const PIECE_X = -3.9; // west band of the glass, straight ahead of the spawn view
 const PIECE_Z = 0;
 const DISPLAY_H = 0.9; // GLB max height on the table
 const DISPLAY_W = 2.5; // GLB max footprint on the glass
-// Record player rests on the glass band, angled toward the spawn view.
-const TURNTABLE_X = -3.4;
-const TURNTABLE_Z = 2.5;
-const TURNTABLE_YAW = Math.atan2(SPAWN_X - TURNTABLE_X, SPAWN_Z - TURNTABLE_Z);
 const LEG_R = 4.95; // leg ring radius
 const LEGS = 12; // one per seated guest
 const BRASS = '#c8a24a';
@@ -214,12 +222,6 @@ const MOTE_Y0 = 0.95;
 const MOTE_Y1 = 2.55;
 const MOTE_SPEED = 0.55; // base spin, rad/s
 
-// Deterministic hash → [0,1): stable layout across mounts, no jitter between rooms.
-const hash = (n: number) => {
-  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-  return s - Math.floor(s);
-};
-
 // Lazy module singleton — one canvas texture shared by every room's field.
 let moteTexture: THREE.CanvasTexture | null = null;
 const getMoteTexture = () => (moteTexture ??= makeMoteTexture());
@@ -233,11 +235,11 @@ function MoteField({ accent, index }: { accent: string; index: number }) {
     // per-mote: radius, base y, spin (signed), bob amp, phase
     const spec = { r: new Float32Array(MOTE_COUNT), y: new Float32Array(MOTE_COUNT), spin: new Float32Array(MOTE_COUNT), bob: new Float32Array(MOTE_COUNT), phase: new Float32Array(MOTE_COUNT) };
     for (let i = 0; i < MOTE_COUNT; i++) {
-      spec.r[i] = MOTE_R0 + hash(i * 3.1) * (MOTE_R1 - MOTE_R0);
-      spec.y[i] = MOTE_Y0 + hash(i * 7.7 + 1.3) * (MOTE_Y1 - MOTE_Y0);
-      spec.spin[i] = (MOTE_SPEED + hash(i * 5.3 + 2.1) * 0.9) * 0.25 * (hash(i * 2.9 + 3.7) < 0.5 ? -1 : 1);
-      spec.bob[i] = 0.05 + hash(i * 9.1 + 4.9) * 0.1;
-      spec.phase[i] = hash(i * 11.3 + 5.5) * Math.PI * 2;
+      spec.r[i] = MOTE_R0 + hash01(i * 3.1) * (MOTE_R1 - MOTE_R0);
+      spec.y[i] = MOTE_Y0 + hash01(i * 7.7 + 1.3) * (MOTE_Y1 - MOTE_Y0);
+      spec.spin[i] = (MOTE_SPEED + hash01(i * 5.3 + 2.1) * 0.9) * 0.25 * (hash01(i * 2.9 + 3.7) < 0.5 ? -1 : 1);
+      spec.bob[i] = 0.05 + hash01(i * 9.1 + 4.9) * 0.1;
+      spec.phase[i] = hash01(i * 11.3 + 5.5) * Math.PI * 2;
       pos[i * 3] = Math.sin(spec.phase[i]) * spec.r[i];
       pos[i * 3 + 1] = spec.y[i];
       pos[i * 3 + 2] = Math.cos(spec.phase[i]) * spec.r[i];
@@ -282,30 +284,10 @@ function MoteField({ accent, index }: { accent: string; index: number }) {
 }
 
 // ---- Balloon scatter — a few helium floats (animated) + air clusters ----
+// Placement lives in layout.ts (shared with walk collision); colors are
+// derived here from the same room-seeded hash.
 
-const HELIUM_N = 5; // only a few float, each visibly bobbing/wandering
-const ISLANDS = 3; // air-filled floor balloons rest in tight islands
-const AIR_TABLE_N = 5; // plus a few loose on the glass top
-const AIR_SQUASH = 0.92; // resting balloons squat; helium ones elongate
-
-interface BalloonSpec {
-  x: number;
-  y: number;
-  z: number;
-  r: number;
-  color: string;
-  rotY: number;
-  tilt: number; // rotation-x jitter (air balloons only)
-}
-
-interface HeliumSpec extends BalloonSpec {
-  phase: number;
-  bobAmp: number;
-  bobW: number;
-  swayW: number;
-}
-
-function BalloonScatter({ theme, index }: { theme: RoomTheme; index: number }) {
+function BalloonScatter({ index }: { index: number }) {
   const heGroups = useRef<Array<THREE.Group | null>>([]);
   const mats = useRef<Array<THREE.MeshStandardMaterial | THREE.MeshBasicMaterial | null>>([]);
 
@@ -328,126 +310,23 @@ function BalloonScatter({ theme, index }: { theme: RoomTheme; index: number }) {
   );
 
   const { helium, air } = useMemo(() => {
+    const layout = computeBalloons(index);
     // Random candy colors per balloon (hue-rolled, seeded per room).
     const _c = new THREE.Color();
     const pickColor = (hue: number, sat: number, lit: number) =>
       `#${_c.setHSL(hue, 0.5 + sat * 0.25, 0.52 + lit * 0.15).getHexString()}`;
-    // Room-seeded hash stream — each room gets its own stable scatter.
-    const h = (i: number, salt: number) => hash(i * 13.7 + salt + index * 977.13);
-
-    // Balloons must not hang over the two straight walk-through slots — no
-    // glass there, so a "table" balloon would hover over the void in the path.
-    // Positions use a = atan2(x, z), so |cos a| · rr is the distance off-axis.
-    const offSlit = (a: number, rr: number, r: number) => {
-      const lim = (TABLE_SLIT + r + 0.1) / rr;
-      let aa = a;
-      while (Math.abs(Math.cos(aa)) < lim) aa += 0.35;
-      return aa;
-    };
-
-    const helium: HeliumSpec[] = [];
-    for (let i = 0; i < HELIUM_N; i++) {
-      const rr = 2.9 + h(i, 2) * 3.7; // over the glass band — never in the walk-through hollow
-      const r = 0.2 + h(i, 4) * 0.1;
-      const a = offSlit(h(i, 1) * Math.PI * 2, rr, r);
-      helium.push({
-        x: Math.sin(a) * rr,
-        y: 1.6 + h(i, 3) * 2.6,
-        z: Math.cos(a) * rr,
-        r,
+    const h = (i: number, salt: number) => hash01(i * 13.7 + salt + index * 977.13);
+    return {
+      helium: layout.helium.map((b, i) => ({
+        ...b,
         color: pickColor(h(i, 5), h(i, 5.5), h(i, 5.7)),
-        rotY: h(i, 6) * Math.PI * 2,
-        tilt: 0,
-        phase: h(i, 7) * Math.PI * 2,
-        bobAmp: 0.09 + h(i, 8) * 0.08,
-        bobW: 0.4 + h(i, 9) * 0.4,
-        swayW: 0.22 + h(i, 10) * 0.25,
-      });
-    }
-
-    // Floor balloons: tight islands (a mound per cluster), scattered around.
-    const air: BalloonSpec[] = [];
-    for (let j = 0; j < ISLANDS; j++) {
-      const ia = h(j, 31) * Math.PI * 2;
-      const irr = 1.6 + h(j, 32) * 4.8;
-      const cx = Math.sin(ia) * irr;
-      const cz = Math.cos(ia) * irr;
-      const cnt = 3 + Math.floor(h(j, 33) * 2);
-      for (let k = 0; k < cnt; k++) {
-        const s = j * 7 + k;
-        const oa = h(s, 34) * Math.PI * 2;
-        const od = 0.12 + h(s, 35) * 0.32;
-        const r = 0.15 + h(s, 36) * 0.09;
-        air.push({
-          x: cx + Math.sin(oa) * od,
-          y: r * AIR_SQUASH,
-          z: cz + Math.cos(oa) * od,
-          r,
-          color: pickColor(h(s, 37), h(s, 37.5), h(s, 37.7)),
-          rotY: h(s, 38) * Math.PI * 2,
-          tilt: (h(s, 39) - 0.5) * 0.7,
-        });
-      }
-    }
-    const tableStart = air.length;
-    for (let i = 0; i < AIR_TABLE_N; i++) {
-      const rr = 2.75 + h(i, 21) * 2.3; // annulus band of the glass top
-      const r = 0.15 + h(i, 23) * 0.09;
-      const a = offSlit(h(i, 22) * Math.PI * 2, rr, r);
-      air.push({
-        x: Math.sin(a) * rr,
-        y: TABLE_H + r * AIR_SQUASH,
-        z: Math.cos(a) * rr,
-        r,
-        color: pickColor(h(i, 24), h(i, 24.5), h(i, 24.7)),
-        rotY: h(i, 25) * Math.PI * 2,
-        tilt: (h(i, 26) - 0.5) * 0.35,
-      });
-    }
-
-    // Rigid-sphere separation — clustered/random rest spots must not intersect.
-    // Table balloons are re-clamped to the glass band and off the slits first
-    // each pass; the last pass resolves pairs, so no intersections remain.
-    for (let pass = 0; pass < 4; pass++) {
-      for (let i = tableStart; i < air.length; i++) {
-        const b = air[i];
-        const rr = Math.hypot(b.x, b.z);
-        const cl = THREE.MathUtils.clamp(rr, 2.85, 5.15);
-        if (cl !== rr) {
-          b.x *= cl / rr;
-          b.z *= cl / rr;
-        }
-        const a = offSlit(Math.atan2(b.x, b.z), cl, b.r);
-        b.x = Math.sin(a) * cl;
-        b.z = Math.cos(a) * cl;
-      }
-      for (let i = 0; i < air.length; i++) {
-        for (let j = i + 1; j < air.length; j++) {
-          const A = air[i];
-          const B = air[j];
-          let dx = B.x - A.x;
-          let dz = B.z - A.z;
-          const d = Math.hypot(dx, dz);
-          const minD = A.r + B.r + 0.05;
-          if (d >= minD) continue;
-          if (d < 1e-4) {
-            dx = 1;
-            dz = 0;
-          } else {
-            dx /= d;
-            dz /= d;
-          }
-          const push = (minD - d) / 2;
-          A.x -= dx * push;
-          A.z -= dz * push;
-          B.x += dx * push;
-          B.z += dz * push;
-        }
-      }
-    }
-
-    return { helium, air };
-  }, [theme, index]);
+      })),
+      air: layout.air.map((b) => {
+        const off = b.table ? 24 : 37;
+        return { ...b, color: pickColor(h(b.seed, off), h(b.seed, off + 0.5), h(b.seed, off + 0.7)) };
+      }),
+    };
+  }, [index]);
 
   useFrame(({ clock, camera }) => {
     const fade = roomCameraFade(camera, index);
@@ -470,7 +349,7 @@ function BalloonScatter({ theme, index }: { theme: RoomTheme; index: number }) {
     <>
       {/* helium — a few floats, each bobbing and wandering; string dangles below */}
       {helium.map((b, i) => {
-        const len = 0.35 + hash(i * 7.3 + index * 977.13 + 4.4) * 0.5;
+        const len = 0.35 + hash01(i * 7.3 + index * 977.13 + 4.4) * 0.5;
         return (
           <group
             key={`he-${i}`}
@@ -548,7 +427,7 @@ function LetterScatter({ index }: { index: number }) {
 
   const letters = useMemo(() => {
     const _c = new THREE.Color();
-    const h = (i: number, salt: number) => hash(i * 17.3 + salt + index * 613.7);
+    const h = (i: number, salt: number) => hash01(i * 17.3 + salt + index * 613.7);
     return Array.from(LETTER_NAME).map((ch, i) => {
       const rr = 3.0 + h(i, 52) * 1.8; // annulus band of the glass top
       let a = h(i, 51) * Math.PI * 2;
@@ -660,6 +539,8 @@ interface CenterpieceProps {
 export function Centerpiece({ index, year, theme, playing }: CenterpieceProps) {
   const medallion = useMemo(() => makeMedallionTexture(year), [year]);
   useEffect(() => () => medallion.dispose(), [medallion]);
+  const spot = turntableSpot(index);
+  const turntableYaw = Math.atan2(SPAWN_X - spot.x, SPAWN_Z - spot.z);
 
   return (
     <group position={[roomCenterX(index), 0, 0]}>
@@ -673,9 +554,9 @@ export function Centerpiece({ index, year, theme, playing }: CenterpieceProps) {
 
       {/* light accent motes drifting above the glass — or a user GLB instead */}
       <MoteField accent={theme.accent} index={index} />
-      <BalloonScatter theme={theme} index={index} />
+      <BalloonScatter index={index} />
       <LetterScatter index={index} />
-      <group position={[TURNTABLE_X, TABLE_H, TURNTABLE_Z]} rotation-y={TURNTABLE_YAW}>
+      <group position={[spot.x, TABLE_H, spot.z]} rotation-y={turntableYaw}>
         <Turntable playing={playing} />
       </group>
       {theme.model && <GlbDisplay url={theme.model} />}

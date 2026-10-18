@@ -6,10 +6,8 @@ import { PositionalAudio } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Suspense, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { currentRoomIndex, roomCenterX } from '../../utils/layout';
+import { currentRoomIndex, roomCenterX, turntableSpot } from '../../utils/layout';
 
-const LOCAL_X = -3.4; // turntable offset inside Centerpiece (same as Centerpiece)
-const LOCAL_Z = 2.5;
 const EMIT_Y = 1.1; // above the glass, at platter height
 const VOLUME = 0.9;
 const REF_DISTANCE = 3; // full volume within 3m, inverse falloff beyond
@@ -46,7 +44,8 @@ export function TurntableAudio({ roomCount, playing }: TurntableAudioProps) {
   useFrame(({ camera }) => {
     const room = currentRoomIndex(camera.position.x, camera.position.z, roomCount);
     if (room >= 0) lastRoom.current = room;
-    group.current?.position.set(roomCenterX(lastRoom.current) + LOCAL_X, EMIT_Y, LOCAL_Z);
+    const spot = turntableSpot(lastRoom.current);
+    group.current?.position.set(roomCenterX(lastRoom.current) + spot.x, EMIT_Y, spot.z);
 
     const audio = sound.current;
     if (!audio || !audio.buffer) return;
