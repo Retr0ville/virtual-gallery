@@ -24,11 +24,10 @@ interface ArtworkProps {
   height: number;
   position: [number, number, number];
   rotationY: number;
-  onSelect: (item: GalleryItem) => void;
   onHover: (item: GalleryItem | null) => void;
 }
 
-export function Artwork({ item, width, height, position, rotationY, onSelect, onHover }: ArtworkProps) {
+export function Artwork({ item, width, height, position, rotationY, onHover }: ArtworkProps) {
   const texture = useTexture(item.url);
   const [hovered, setHovered] = useState(false);
   const lightTarget = useMemo(() => new THREE.Object3D(), []);
@@ -68,7 +67,8 @@ export function Artwork({ item, width, height, position, rotationY, onSelect, on
   };
 
   return (
-    <group position={position} rotation-y={rotationY}>
+    // userData tags the whole artwork for the click-to-fly raycaster.
+    <group position={position} rotation-y={rotationY} userData={{ artwork: item }}>
       <RoundedBox
         args={[w + ARTWORK_FRAME_PAD * 2, h + ARTWORK_FRAME_PAD * 2, FRAME_DEPTH]}
         radius={0.018}
@@ -77,10 +77,6 @@ export function Artwork({ item, width, height, position, rotationY, onSelect, on
         castShadow
         onPointerOver={handleOver}
         onPointerOut={handleOut}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(item);
-        }}
       >
         <meshStandardMaterial
           color={FRAME_COLOR}
@@ -95,10 +91,6 @@ export function Artwork({ item, width, height, position, rotationY, onSelect, on
         position={[0, 0, FRAME_DEPTH + 0.003]}
         onPointerOver={handleOver}
         onPointerOut={handleOut}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(item);
-        }}
       >
         <planeGeometry args={[w, h]} />
         <meshStandardMaterial
@@ -155,7 +147,6 @@ interface RoomArtworksProps {
   roomIndex: number;
   roomCount: number;
   items: GalleryItem[];
-  onSelect: (item: GalleryItem) => void;
   onHover: (item: GalleryItem | null) => void;
 }
 
@@ -167,7 +158,7 @@ export function RoomArtworks(props: RoomArtworksProps) {
   return <ArtworkWall {...props} />;
 }
 
-function ArtworkWall({ roomIndex, roomCount, items, onSelect, onHover }: RoomArtworksProps) {
+function ArtworkWall({ roomIndex, roomCount, items, onHover }: RoomArtworksProps) {
   const urls = useMemo(
     () =>
       items.map((item) =>
@@ -200,7 +191,6 @@ function ArtworkWall({ roomIndex, roomCount, items, onSelect, onHover }: RoomArt
               height={slot.height}
               position={[slot.x, ARTWORK_CENTER_Y, slot.z]}
               rotationY={slot.rotationY}
-              onSelect={onSelect}
               onHover={onHover}
             />
           </Suspense>

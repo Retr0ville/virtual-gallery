@@ -38,8 +38,8 @@ export function HUD({
     roomItemCount === 0
       ? 'No artworks yet'
       : mode === 'walk'
-        ? 'WASD move · Shift sprint · F fly · Esc release cursor'
-        : 'WASD move · Space up · Shift down · F walk · Esc release cursor';
+        ? 'WASD move · Shift sprint · F fly · Click travel · Esc release cursor'
+        : 'WASD move · Space up · Shift down · F walk · Click travel · Esc release cursor';
 
   return (
     <div className="hud">

@@ -101,7 +101,7 @@ export function Entrance({ onEnter, onAdminLogin, adminAuthed }: EntranceProps) 
       </button>
 
       <div className="entrance-hint">
-        Mouse look · WASD move · F to fly
+        Mouse look · WASD move · F to fly · Click to travel
       </div>
 
       <button

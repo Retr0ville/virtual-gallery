@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
 import { YearRoom, GalleryItem } from '../../utils/media';
+import { EYE, buildRegions, ceilingAt, insideAnyRegion, insideFlightBounds } from '../../utils/layout';
 import { themeForRoom } from '../../utils/themes';
 import { RoomArtworks } from './Artwork';
 import { Beams } from './Beams';
@@ -14,7 +15,7 @@ import { Centerpiece } from './Centerpiece';
 import { Corridor } from './Corridor';
 import { GalleryFloor } from './GalleryFloor';
 import { Lighting } from './Lighting';
-import { LookDelta, MoveInput, MoveMode, Player } from './Player';
+import { FlyTarget, LookDelta, MoveInput, MoveMode, Player } from './Player';
 import { Room } from './Room';
 
 export const BG_COLOR = '#e9e4da';
@@ -58,6 +59,115 @@ function ShadowBake() {
   return null;
 }
 
+interface ClickNavigatorProps {
+  enabled: boolean;
+  mode: MoveMode;
+  roomCount: number;
+  lockedCorridors: readonly boolean[];
+  flyToRef: MutableRefObject<FlyTarget | null>;
+  onArtworkSelect: (item: GalleryItem) => void;
+}
+
+// Any click on a surface glides the camera there. Artwork clicks target a
+// viewing spot in front of the frame, then open the viewer on arrival.
+function ClickNavigator({
+  enabled,
+  mode,
+  roomCount,
+  lockedCorridors,
+  flyToRef,
+  onArtworkSelect,
+}: ClickNavigatorProps) {
+  const camera = useThree((s) => s.camera);
+  const scene = useThree((s) => s.scene);
+  const gl = useThree((s) => s.gl);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const el = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const regions = buildRegions(roomCount, lockedCorridors);
+
+    const handleClick = (event: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const locked = document.pointerLockElement === el;
+      pointer.set(
+        locked ? 0 : ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        locked ? 0 : -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(pointer, camera);
+
+      // Skip points (motes) and additive light shafts — they aren't surfaces.
+      const hit = raycaster.intersectObjects(scene.children, true).find((h) => {
+        const mesh = h.object as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.visible) return false;
+        const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as
+          | THREE.Material
+          | undefined;
+        return !material || material.blending !== THREE.AdditiveBlending;
+      });
+      if (!hit) return;
+
+      let tagged: THREE.Object3D | null = hit.object;
+      while (tagged && !(tagged.userData.artwork as GalleryItem | undefined)) {
+        tagged = tagged.parent;
+      }
+      const artwork = tagged?.userData.artwork as GalleryItem | undefined;
+
+      const dest = new THREE.Vector3();
+      let onArrive: (() => void) | undefined;
+
+      if (artwork && tagged) {
+        const normal = new THREE.Vector3(0, 0, 1)
+          .applyQuaternion(tagged.getWorldQuaternion(new THREE.Quaternion()))
+          .normalize();
+        tagged.getWorldPosition(dest).addScaledVector(normal, 1.6);
+        dest.y = EYE;
+        const item = artwork;
+        onArrive = () => onArtworkSelect(item);
+      } else {
+        const normal = hit.face
+          ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld)
+          : new THREE.Vector3(0, 1, 0);
+        dest.copy(hit.point);
+        if (normal.y > 0.5) {
+          // Floor / tabletop: stand at eye height over the clicked spot.
+          dest.y = EYE;
+        } else if (normal.y < -0.5) {
+          // Ceiling: rise to just below it.
+          dest.y = ceilingAt(hit.point.x, hit.point.z, roomCount) - 0.3;
+        } else {
+          // Wall: back off toward the camera so we end in front of it.
+          const toward = camera.position.clone().sub(hit.point);
+          toward.y = 0;
+          if (toward.lengthSq() < 1e-6) toward.set(0, 0, 1);
+          toward.normalize();
+          dest.addScaledVector(toward, 1.6);
+          dest.y = THREE.MathUtils.clamp(
+            hit.point.y,
+            EYE,
+            ceilingAt(hit.point.x, hit.point.z, roomCount) - 0.3
+          );
+        }
+      }
+
+      const reachable =
+        mode === 'walk'
+          ? insideAnyRegion(regions, dest.x, dest.z)
+          : insideFlightBounds(regions, dest.x, dest.z);
+      if (!reachable) return;
+
+      flyToRef.current = { position: dest, onArrive };
+    };
+
+    el.addEventListener('click', handleClick);
+    return () => el.removeEventListener('click', handleClick);
+  }, [enabled, mode, roomCount, lockedCorridors, flyToRef, onArtworkSelect, camera, scene, gl]);
+
+  return null;
+}
+
 interface GalleryCanvasProps {
   rooms: YearRoom[];
   mode: MoveMode;
@@ -66,6 +176,7 @@ interface GalleryCanvasProps {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
   inputRef: MutableRefObject<MoveInput>;
   lookDeltaRef: MutableRefObject<LookDelta>;
+  flyToRef: MutableRefObject<FlyTarget | null>;
   onModeToggle: () => void;
   onRoomChange: (index: number) => void;
   onArtworkSelect: (item: GalleryItem) => void;
@@ -80,6 +191,7 @@ export default function GalleryCanvas({
   controlsRef,
   inputRef,
   lookDeltaRef,
+  flyToRef,
   onModeToggle,
   onRoomChange,
   onArtworkSelect,
@@ -115,6 +227,14 @@ export default function GalleryCanvas({
         <Lighting roomCount={rooms.length} />
         <Beams roomCount={rooms.length} />
         <GalleryFloor roomCount={rooms.length} />
+        <ClickNavigator
+          enabled={enabled}
+          mode={mode}
+          roomCount={rooms.length}
+          lockedCorridors={lockedCorridors}
+          flyToRef={flyToRef}
+          onArtworkSelect={onArtworkSelect}
+        />
 
         <Suspense fallback={null}>
           {rooms.map((room, i) => (
@@ -126,7 +246,6 @@ export default function GalleryCanvas({
                   roomIndex={i}
                   roomCount={rooms.length}
                   items={room.items}
-                  onSelect={onArtworkSelect}
                   onHover={onArtworkHover}
                 />
               </Suspense>
@@ -154,6 +273,7 @@ export default function GalleryCanvas({
           controlsRef={controlsRef}
           inputRef={inputRef}
           lookDeltaRef={lookDeltaRef}
+          flyToRef={flyToRef}
           onModeToggle={onModeToggle}
           onRoomChange={onRoomChange}
         />

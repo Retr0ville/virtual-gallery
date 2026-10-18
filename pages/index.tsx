@@ -4,7 +4,7 @@ import Head from 'next/head';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
 import GalleryCanvas, { CANVAS_ID } from '../components/3d/GalleryCanvas';
-import { LookDelta, MoveInput, MoveMode } from '../components/3d/Player';
+import { FlyTarget, LookDelta, MoveInput, MoveMode } from '../components/3d/Player';
 import { AdminPanel } from '../components/ui/AdminPanel';
 import { Entrance } from '../components/ui/Entrance';
 import { HUD } from '../components/ui/HUD';
@@ -27,6 +27,7 @@ export default function Home() {
 
   const inputRef = useRef<MoveInput>({ x: 0, z: 0 });
   const lookDeltaRef = useRef<LookDelta>({ dx: 0, dy: 0 });
+  const flyToRef = useRef<FlyTarget | null>(null);
   const controlsRef = useRef<PointerLockControlsImpl | null>(null);
   // Scene data is applied only when the admin panel is closed, so uploads
   // don't re-render/re-suspend the 3D subtree mid-session.
@@ -148,6 +149,7 @@ export default function Home() {
           controlsRef={controlsRef}
           inputRef={inputRef}
           lookDeltaRef={lookDeltaRef}
+          flyToRef={flyToRef}
           onModeToggle={handleModeToggle}
           onRoomChange={handleRoomChange}
           onArtworkSelect={handleArtworkSelect}

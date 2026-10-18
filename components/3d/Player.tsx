@@ -19,6 +19,13 @@ import {
 
 export type MoveMode = 'walk' | 'fly';
 
+// Click-to-travel destination. Player glides the camera here and fires the
+// optional callback on arrival (used to open the artwork viewer).
+export interface FlyTarget {
+  position: THREE.Vector3;
+  onArrive?: () => void;
+}
+
 export interface MoveInput {
   x: number; // strafe, +1 = right
   z: number; // forward, +1 = forward
@@ -54,6 +61,7 @@ interface PlayerProps {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
   inputRef: MutableRefObject<MoveInput>;
   lookDeltaRef: MutableRefObject<LookDelta>;
+  flyToRef: MutableRefObject<FlyTarget | null>;
   onModeToggle: () => void;
   onRoomChange: (index: number) => void;
 }
@@ -68,6 +76,7 @@ export function Player({
   controlsRef,
   inputRef,
   lookDeltaRef,
+  flyToRef,
   onModeToggle,
   onRoomChange,
 }: PlayerProps) {
@@ -169,6 +178,25 @@ export function Player({
     }
 
     const pos = camera.position;
+
+    // Click-to-travel: glide straight to the requested point, bypassing the
+    // normal movement/collision step, then resume the current mode.
+    const flight = flyToRef.current;
+    if (flight) {
+      pos.lerp(flight.position, 1 - Math.exp(-5 * dt));
+      velocity.current.set(0, 0, 0);
+      if (pos.distanceToSquared(flight.position) < 0.0036) {
+        pos.copy(flight.position);
+        flyToRef.current = null;
+        flight.onArrive?.();
+      }
+      const flightRoom = currentRoomIndex(pos.x, pos.z, roomCount);
+      if (flightRoom !== lastRoom.current) {
+        lastRoom.current = flightRoom;
+        onRoomChangeRef.current(flightRoom);
+      }
+      return;
+    }
 
     // Walk is blocked by furniture and door leaves; fly only by the walls.
     const isWalk = modeRef.current === 'walk';
