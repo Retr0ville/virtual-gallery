@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { roomCenterX } from '../../utils/layout';
 import { makeBeamTexture } from '../../utils/textures';
+import { themeForRoom } from '../../utils/themes';
 import { roomCameraFade } from './Lighting';
 import { TRIM_COLOR } from './Room';
 
@@ -23,13 +24,13 @@ const SWEEP_SPEED = 0.32;
 const BEAMS_PER_ROOM = 4;
 const BEAM_OPACITY = 0.18;
 const BEAM_INTENSITY = 32;
-const PALETTE = ['#ff4fa3', '#2fc9ff', '#ffa53c', '#8f5cff'];
 
 // Azimuths offset from artwork slots; yaw = azimuth + PI/2 throws inward.
 const azimuth = (k: number) => Math.PI / 8 + (k * Math.PI) / 2;
 const phase = (k: number, roomIndex: number) => (k * Math.PI) / 2 + roomIndex * 0.85;
 
 function RoomBeams({ index }: { index: number }) {
+  const theme = themeForRoom(index);
   const beamTex = useMemo(() => makeBeamTexture(), []);
   useEffect(() => () => beamTex.dispose(), [beamTex]);
   const targets = useMemo(
@@ -62,7 +63,7 @@ function RoomBeams({ index }: { index: number }) {
     <group position={[roomCenterX(index), 0, 0]}>
       {Array.from({ length: BEAMS_PER_ROOM }, (_, k) => {
         const a = azimuth(k);
-        const color = PALETTE[k % PALETTE.length];
+        const color = theme.beams[k % theme.beams.length];
         return (
           <group
             key={`beam-${k}`}

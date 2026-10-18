@@ -14,9 +14,10 @@ const shot = (p, name) =>
   p.screenshot({ path: path.join(OUT, `${name}.png`), timeout: 90000 });
 const unlock = (p) => p.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
 
-// Screen x for a point at world angle from screen center (perspective-correct).
-// fov 68 vertical, aspect 16:10 -> half-h-fov ~47.2deg. Painting A (Harbor Morning)
-// sits at ~15.7deg left of center at spawn -> x ~= 532.
+// Screen coords for a wall point from the spawn view (perspective-correct).
+// fov 68 vertical, aspect 16:10, eye 1.85, spawn (-7, 0) facing +x; artworks
+// hang flanking the doorway ahead. Harbor Morning (z -5.90) -> (400, 466);
+// Study In Ochre (z +5.90) -> (1040, 466).
 
 // Minimal solid-color PNG generator (also used for fixtures + upload test).
 function crc32(buf) {
@@ -40,8 +41,9 @@ function png(w, h, rgb) {
 }
 
 // ---- Fixtures: 2 paintings per year across 3 years (2025/2026/2027). ---------
-// 2025 order matters: ochre order 1 -> screen RIGHT (x 913), harbor order 2 ->
-// screen LEFT (x 532) — hover/click coords below assume this layout.
+// 2025 order matters: harbor order 2 -> slot at z +2.16 (screen LEFT, x 503),
+// ochre order 1 -> slot at z -2.16 (screen RIGHT, x 937) — hover/click coords
+// below assume this layout at the spawn.
 const YEARS = [
   ['study-in-ochre.png', [166, 116, 50], 'Study In Ochre', 2025, 1],
   ['harbor-morning.png', [38, 54, 84], 'Harbor Morning', 2025, 2],
@@ -99,14 +101,14 @@ let browser = null;
   await unlock(page);
   await page.waitForTimeout(200);
 
-  // Hover painting (Harbor Morning, left, ~532,458).
-  await page.mouse.move(532, 458);
+  // Hover painting (Harbor Morning, screen left, ~400,466).
+  await page.mouse.move(400, 466);
   await page.waitForTimeout(600);
   await shot(page, '03-tooltip-hover');
   const tooltipText = await page.locator('.hud-tooltip.is-visible .hud-tooltip-title').textContent().catch(() => null);
 
   // Click painting -> viewer.
-  await page.mouse.click(532, 458);
+  await page.mouse.click(400, 466);
   await page.waitForTimeout(900);
   const viewerOpen = await page.locator('.viewer').count();
   await shot(page, '04-viewer');
@@ -134,22 +136,61 @@ let browser = null;
   await page.waitForTimeout(400);
   const tooltipAfterOut = await page.locator('.hud-tooltip.is-visible').count();
 
-  // Spawn faces -x; door to the next room is at +x, behind the player. Back
-  // through it with 's' — rotating needs real pointer lock (no-op headless).
-  // Poll in chunks until the HUD year changes instead of trusting fps math.
+  // Spawn (-7, 0) faces +x, in the outer aisle. Holding 'a' (+z is right, so
+  // 'a' = -z) runs at the round wall: must NOT leave room 1.
   const ratio = Math.min(1, fps / 20);
   const startYear = await page.locator('.hud-year').textContent();
+  await page.keyboard.down('a');
+  await page.waitForTimeout(Math.max(3000, Math.round(3000 / ratio)));
+  await page.keyboard.up('a');
+  await page.waitForTimeout(600);
+  const blockedYear = await page.locator('.hud-year').textContent();
+  const blockedOk = blockedYear === startYear;
+  await shot(page, '06-blocked-by-centerpiece');
+
+  // Line up with the straight walk-through slot at z=0, then hold 'w'
+  // (+x, forward): through the hollow middle, out the doorway into 2026.
+  const centerZ = async () => {
+    for (let i = 0; i < 30; i++) {
+      const z = await page.evaluate(() => window.__cam.position.z);
+      if (Math.abs(z) < 0.15) break;
+      const key = z > 0 ? 'a' : 'd'; // 'a' = -z, 'd' = +z (facing +x)
+      await page.keyboard.down(key);
+      await page.waitForTimeout(100);
+      await page.keyboard.up(key);
+      await page.waitForTimeout(150);
+    }
+  };
+  await centerZ();
+  const walk = async (key, ms) => {
+    await page.keyboard.down(key);
+    await page.waitForTimeout(Math.max(ms, Math.round(ms / ratio)));
+    await page.keyboard.up(key);
+    await page.waitForTimeout(250);
+  };
   let yearText = startYear;
-  await page.keyboard.down('s');
-  for (let i = 0; i < 40 && (yearText === '' || yearText === startYear); i++) {
-    await page.waitForTimeout(3000);
+  await page.keyboard.down('w');
+  // HUD year is '' in corridors — keep polling through the gap.
+  for (let i = 0; i < 15 && (yearText === startYear || yearText === ''); i++) {
+    await page.waitForTimeout(2000);
     yearText = await page.locator('.hud-year').textContent();
   }
-  await page.keyboard.up('s');
+  await page.keyboard.up('w');
   await page.waitForTimeout(800);
   yearText = await page.locator('.hud-year').textContent();
-  await shot(page, '06-room2-walked');
-  await shot(page, '07-room2-artwork');
+  await shot(page, '07-room2-walked');
+  await shot(page, '08-room2-artwork');
+
+  // Locked door: rooms open on her birthday (Oct 15 of their own year). With
+  // 2027 still in the future, holding 'w' toward it must stop at the sealed
+  // corridor door — the HUD year ends up '' (corridor), never 2027.
+  await page.keyboard.down('w');
+  await page.waitForTimeout(Math.max(10000, Math.round(10000 / ratio)));
+  await page.keyboard.up('w');
+  await page.waitForTimeout(600);
+  const lockedYear = await page.locator('.hud-year').textContent();
+  const doorLocked = lockedYear !== '2027';
+  await shot(page, '08b-locked-2027-door');
 
   // Fly + ascend.
   await page.keyboard.press('f');
@@ -157,7 +198,7 @@ let browser = null;
   await page.waitForTimeout(Math.max(1500, Math.round(1400 / ratio)));
   await page.keyboard.up(' ');
   await page.waitForTimeout(400);
-  await shot(page, '08-fly-high');
+  await shot(page, '09-fly-high');
   const chip = await page.locator('.hud-chip').textContent();
   await page.keyboard.press('f');
   await page.waitForTimeout(1200);
@@ -167,14 +208,14 @@ let browser = null;
   await page.waitForTimeout(300);
   await page.click('.hud-actions .icon-btn');
   await page.waitForTimeout(800);
-  await shot(page, '09-admin-open');
+  await shot(page, '10-admin-open');
 
   const tmpImg = path.join(OUT, 'e2e-upload-test.png');
   fs.writeFileSync(tmpImg, png(700, 500, [120, 140, 110]));
   const adminItemsBefore = await page.locator('.admin-item').count();
   await page.setInputFiles('.admin input[type=file]', tmpImg);
   await page.waitForTimeout(3000);
-  await shot(page, '10-admin-uploaded');
+  await shot(page, '11-admin-uploaded');
   const adminItemsAfterUpload = await page.locator('.admin-item').count();
 
   // Delete via title input value (locator hasText can't see input values).
@@ -195,7 +236,7 @@ let browser = null;
     deleted = true;
   }
   const adminItemsAfterDelete = await page.locator('.admin-item').count();
-  await shot(page, '11-admin-deleted');
+  await shot(page, '12-admin-deleted');
   await page.click('.admin-head .icon-btn');
   await page.waitForTimeout(400);
   const hudAfter = await page.locator('.hud').count();
@@ -217,13 +258,13 @@ let browser = null;
   await mp.waitForTimeout(2000);
   await mp.click('.entrance-btn', { timeout: 30000 });
   await mp.waitForTimeout(3000);
-  await shot(mp, '12-mobile-entered');
+  await shot(mp, '13-mobile-entered');
   const joyCount = await mp.locator('.touch-joystick').count();
   const crosshairMobile = await mp.locator('.hud-crosshair').count();
 
   console.log(JSON.stringify({
     hudBefore, locked, tooltipText, viewerOpen, viewerTitle1, viewerClosed,
-    fps, ratio, startYear, yearText, tooltipAfterOut, chip,
+    fps, ratio, startYear, blockedYear, blockedOk, yearText, lockedYear, doorLocked, tooltipAfterOut, chip,
     adminItemsBefore, adminItemsAfterUpload, adminItemsAfterDelete, deleted, hudAfter,
     joyCount, crosshairMobile,
     consoleErrors: logs.filter((l) => /error|warn/i.test(l)),

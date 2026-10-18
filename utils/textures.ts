@@ -55,6 +55,25 @@ export function makeYearPlateTexture(year: number): THREE.CanvasTexture {
   return finalize(canvas, 4);
 }
 
+// Brass door plaque: the year reads clearly from the corridor without
+// dominating the leaf. Dark rule inset from the plate edges.
+export function makeDoorPlaqueTexture(year: number): THREE.CanvasTexture {
+  const w = 1024;
+  const h = 256;
+  const { canvas, ctx } = makeCanvas(w, h);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 168px ${FONT}`;
+  ctx.fillStyle = 'rgba(20,20,22,0.96)';
+  const total = drawSpacedText(ctx, String(year), w / 2, h / 2, 8);
+  ctx.fillStyle = 'rgba(20,20,22,0.7)';
+  ctx.fillRect((w - total) / 2, h / 2 + 72, total, 5);
+  ctx.strokeStyle = 'rgba(20,20,22,0.9)';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(18, 18, w - 36, h - 36);
+  return finalize(canvas, 4);
+}
+
 // Soft spotlight shaft for beam cones. Apex fully opaque, fading out toward
 // the wide base (cylinder v=1 is the top/apex). Material opacity + additive
 // blending do the rest.
@@ -72,7 +91,21 @@ export function makeBeamTexture(): THREE.CanvasTexture {
   return finalize(canvas, 4);
 }
 
-// Circular floor medallion with the year, subtle ring. Transparent background.
+// Soft radial glow for table motes (particle points). Transparent background.
+export function makeMoteTexture(): THREE.CanvasTexture {
+  const s = 64;
+  const { canvas, ctx } = makeCanvas(s, s);
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  return finalize(canvas, 4);
+}
+
+// Circular year medallion — etched-glass feel, laid on the hollow-center
+// floor beneath the ring table. Ring + the year once, centered.
 export function makeMedallionTexture(year: number): THREE.CanvasTexture {
   const s = 1024;
   const { canvas, ctx } = makeCanvas(s, s);

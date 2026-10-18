@@ -1,10 +1,12 @@
-// Lighting rig. Budget-conscious: per room 1 shadow-casting downlight + 2 wall washes.
-// Lights stay mounted; intensity fades with player distance to avoid shader recompiles.
+// Lighting rig. Budget-conscious: per room 1 shadow-casting downlight + 2 wall
+// washes + 1 accent rim. Lights stay mounted; intensity fades with player
+// distance to avoid shader recompiles.
 
 import { useFrame, useThree } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { CORR_L, R, roomCenterX } from '../../utils/layout';
+import { themeForRoom } from '../../utils/themes';
 
 const _target = new THREE.Vector3();
 
@@ -22,14 +24,16 @@ function RoomLighting({
   index: number;
   groupRef: (g: THREE.Group | null) => void;
 }) {
+  const theme = themeForRoom(index);
   const downTarget = useMemo(() => new THREE.Object3D(), []);
   const washTargetPlusZ = useMemo(() => new THREE.Object3D(), []);
   const washTargetMinusZ = useMemo(() => new THREE.Object3D(), []);
+  const rimTarget = useMemo(() => new THREE.Object3D(), []);
 
   return (
     <group position={[roomCenterX(index), 0, 0]} ref={groupRef}>
-      {/* shadow-casting downlight */}
-      <primitive object={downTarget} position={[0, 0, 0]} />
+      {/* shadow-casting downlight — aimed at the center table */}
+      <primitive object={downTarget} position={[0, 0.75, 0]} />
       <spotLight
         position={[0, 4.7, 0]}
         target={downTarget}
@@ -55,7 +59,7 @@ function RoomLighting({
         intensity={55}
         distance={16}
         decay={2}
-        color="#fff2df"
+        color={theme.artLight}
       />
 
       {/* wall wash toward -z arc */}
@@ -68,7 +72,20 @@ function RoomLighting({
         intensity={55}
         distance={16}
         decay={2}
-        color="#fff2df"
+        color={theme.artLight}
+      />
+
+      {/* accent rim — low raking light across the glass table edge (no shadow) */}
+      <primitive object={rimTarget} position={[0, 0.7, 0]} />
+      <spotLight
+        position={[0, 2.2, -5.6]}
+        target={rimTarget}
+        angle={0.5}
+        penumbra={1}
+        intensity={20}
+        distance={12}
+        decay={2}
+        color={theme.accent}
       />
     </group>
   );

@@ -3,21 +3,27 @@
 
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { CORR_W, DOOR_H, GAP, R, WALL_H, roomCenterX } from '../../utils/layout';
-import { makeMedallionTexture, makeYearPlateTexture } from '../../utils/textures';
+import { CORR_W, DOOR_H, DOOR_HINGE_X, DOOR_LEAF_W, GAP, R, WALL_H, doorLeafAngle, roomCenterX } from '../../utils/layout';
+import { makeYearPlateTexture } from '../../utils/textures';
+import { RoomTheme } from '../../utils/themes';
 
+// Neutral defaults — corridors and non-themed surfaces use these.
 export const WALL_COLOR = '#ece7de';
 export const CEIL_COLOR = '#f1ede5';
 export const FLOOR_COLOR = '#aaa69e';
 export const TRIM_COLOR = '#1b1b1e';
 
+const BRASS = '#c8a24a';
 const SEGMENTS_PER_RAD = 26;
+// Two-tone paint split (m). Artworks hang over the line, as on a real painted
+// wall; the rail sits behind their backing plane, never in front of the art.
+const DADO_H = 1.0;
 
 function Portal({ x }: { x: number }) {
   return (
     <group position={[x, 0, 0]}>
       {[-1, 1].map((s) => (
-        <mesh key={s} position={[0, DOOR_H / 2, s * (CORR_W / 2 + 0.15)]} castShadow>
+        <mesh key={s} position={[0, DOOR_H / 2, s * (CORR_W / 2 + 0.14)]} castShadow>
           <boxGeometry args={[0.16, DOOR_H, 0.3]} />
           <meshStandardMaterial color={TRIM_COLOR} roughness={0.65} metalness={0.08} />
         </mesh>
@@ -30,13 +36,51 @@ function Portal({ x }: { x: number }) {
   );
 }
 
+// One pair of double leaves per corridor, hung on the room's +x doorway.
+// A closed leaf points toward the opening centre; the swing sweeps it past 90°
+// to rest against the wall beside its own hinge. Pairs are uneven and differ
+// room to room — as if someone opened them. Angles come from layout so
+// collision matches the meshes exactly.
+function OpenDoors({ index }: { index: number }) {
+  return (
+    <>
+      {([1, -1] as const).map((hz) => {
+        const angle = doorLeafAngle(index, hz);
+        return (
+          <group key={hz} position={[DOOR_HINGE_X, 0, hz * (CORR_W / 2)]} rotation-y={angle}>
+            <mesh position={[0, DOOR_H / 2, DOOR_LEAF_W / 2]} castShadow receiveShadow>
+              <boxGeometry args={[0.06, DOOR_H - 0.04, DOOR_LEAF_W]} />
+              <meshStandardMaterial color={TRIM_COLOR} roughness={0.55} metalness={0.12} />
+            </mesh>
+            {[1, -1].map((fx) => (
+              <group key={fx}>
+                {[0.62, 1.75].map((py) => (
+                  <mesh key={py} position={[fx * 0.033, py, DOOR_LEAF_W / 2]}>
+                    <boxGeometry args={[0.014, 0.72, DOOR_LEAF_W - 0.34]} />
+                    <meshStandardMaterial color="#2a2a2e" roughness={0.5} metalness={0.18} />
+                  </mesh>
+                ))}
+                <mesh position={[fx * 0.05, 1.02, DOOR_LEAF_W - 0.14]}>
+                  <sphereGeometry args={[0.035, 14, 10]} />
+                  <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.8} />
+                </mesh>
+              </group>
+            ))}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
 interface RoomProps {
   index: number;
   year: number;
   roomCount: number;
+  theme: RoomTheme;
 }
 
-export function Room({ index, year, roomCount }: RoomProps) {
+export function Room({ index, year, roomCount, theme }: RoomProps) {
   const cx = roomCenterX(index);
   const single = roomCount === 1;
   const hasDoorPlusX = !single && index !== roomCount - 1;
@@ -54,9 +98,7 @@ export function Room({ index, year, roomCount }: RoomProps) {
     return [[start, Math.PI * 2 - GAP]];
   }, [single, hasDoorPlusX, hasDoorMinusX]);
 
-  const medallion = useMemo(() => makeMedallionTexture(year), [year]);
   const plate = useMemo(() => makeYearPlateTexture(year), [year]);
-  useEffect(() => () => medallion.dispose(), [medallion]);
   useEffect(() => () => plate.dispose(), [plate]);
 
   return (
@@ -68,28 +110,48 @@ export function Room({ index, year, roomCount }: RoomProps) {
       <mesh rotation-x={Math.PI / 2} position-y={WALL_H}>
         <circleGeometry args={[R, 96]} />
         <meshStandardMaterial
-          color={CEIL_COLOR}
-          emissive={CEIL_COLOR}
+          color={theme.ceiling}
+          emissive={theme.ceiling}
           emissiveIntensity={0.34}
           roughness={0.95}
           metalness={0}
         />
       </mesh>
 
-      {/* lower wall arcs (door gaps between them) */}
-      {lowerArcs.map(([start, len], i) => (
-        <mesh key={`arc-${i}`} position-y={DOOR_H / 2} receiveShadow>
-          <cylinderGeometry
-            args={[R, R, DOOR_H, Math.max(14, Math.round(len * SEGMENTS_PER_RAD)), 1, true, start, len]}
-          />
-          <meshStandardMaterial color={WALL_COLOR} roughness={0.92} metalness={0} side={THREE.BackSide} />
-        </mesh>
-      ))}
+      {/* ceiling halo ring — this room's signature accent, floating under the
+          ceiling like a cove light */}
+      <mesh rotation-x={Math.PI / 2} position-y={WALL_H - 0.08}>
+        <torusGeometry args={[2.5, 0.018, 10, 96]} />
+        <meshBasicMaterial color={theme.accent} toneMapped={false} />
+      </mesh>
+
+      {/* two-tone wall arcs (door gaps between them): deeper dado band below
+          the rail, main wall tone above */}
+      {lowerArcs.map(([start, len], i) => {
+        const seg = Math.max(14, Math.round(len * SEGMENTS_PER_RAD));
+        return (
+          <group key={`arc-${i}`}>
+            <mesh position-y={DADO_H / 2} receiveShadow>
+              <cylinderGeometry args={[R, R, DADO_H, seg, 1, true, start, len]} />
+              <meshStandardMaterial color={theme.wallLower} roughness={0.92} metalness={0} side={THREE.BackSide} />
+            </mesh>
+            <mesh position-y={(DADO_H + DOOR_H) / 2} receiveShadow>
+              <cylinderGeometry args={[R, R, DOOR_H - DADO_H, seg, 1, true, start, len]} />
+              <meshStandardMaterial color={theme.wall} roughness={0.92} metalness={0} side={THREE.BackSide} />
+            </mesh>
+            {/* painted chair rail on the tone split, standing proud of the wall */}
+            <mesh position-y={DADO_H}>
+              <cylinderGeometry args={[R - 0.02, R - 0.02, 0.05, seg, 1, true, start, len]} />
+              <meshStandardMaterial color={theme.rail} roughness={0.55} metalness={0.04} side={THREE.BackSide} />
+            </mesh>
+          </group>
+        );
+      })}
 
       {/* upper wall band (continuous above doors) */}
       <mesh position-y={(DOOR_H + WALL_H) / 2}>
         <cylinderGeometry args={[R, R, WALL_H - DOOR_H, 128, 1, true]} />
-        <meshStandardMaterial color={WALL_COLOR} roughness={0.92} metalness={0} side={THREE.BackSide} />
+        <meshStandardMaterial color={theme.wall} roughness={0.92} metalness={0} side={THREE.BackSide} />
       </mesh>
 
       {/* skirting */}
@@ -101,6 +163,10 @@ export function Room({ index, year, roomCount }: RoomProps) {
       {/* doorway portal trims */}
       {hasDoorPlusX && <Portal x={R} />}
       {hasDoorMinusX && <Portal x={-R} />}
+
+      {/* one pair of open leaves per corridor (room's +x doorway); locked
+          future doors are separate, sealed slabs in the corridor */}
+      {hasDoorPlusX && <OpenDoors index={index} />}
 
       {/* year signage above doorways, interior side */}
       {hasDoorPlusX && (
@@ -115,12 +181,6 @@ export function Room({ index, year, roomCount }: RoomProps) {
           <meshBasicMaterial map={plate} transparent depthWrite={false} />
         </mesh>
       )}
-
-      {/* floor medallion */}
-      <mesh rotation-x={-Math.PI / 2} position-y={0.004} renderOrder={1}>
-        <circleGeometry args={[1.15, 64]} />
-        <meshBasicMaterial map={medallion} transparent depthWrite={false} />
-      </mesh>
 
       {/* track rail + fixtures */}
       <mesh rotation-x={Math.PI / 2} position-y={4.62}>

@@ -8,6 +8,8 @@ import * as THREE from 'three';
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
 import {
   EYE,
+  SPAWN_X,
+  SPAWN_Z,
   buildRegions,
   ceilingAt,
   currentRoomIndex,
@@ -26,7 +28,7 @@ export interface LookDelta {
   dy: number;
 }
 
-const WALK_SPEED = 3.2;
+const WALK_SPEED = 4.2;
 const SPRINT_SPEED = 6.0;
 const FLY_SPEED = 4.5;
 const FLY_VERTICAL_SPEED = 3.0;
@@ -43,6 +45,7 @@ const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 interface PlayerProps {
   roomCount: number;
+  lockedCorridors: readonly boolean[];
   enabled: boolean;
   mode: MoveMode;
   isTouch: boolean;
@@ -56,6 +59,7 @@ interface PlayerProps {
 
 export function Player({
   roomCount,
+  lockedCorridors,
   enabled,
   mode,
   isTouch,
@@ -68,7 +72,10 @@ export function Player({
 }: PlayerProps) {
   const camera = useThree((s) => s.camera);
   const setEvents = useThree((s) => s.setEvents);
-  const regions = useMemo(() => buildRegions(roomCount), [roomCount]);
+  const regions = useMemo(
+    () => buildRegions(roomCount, lockedCorridors),
+    [roomCount, lockedCorridors]
+  );
   const keys = useRef<Set<string>>(new Set());
   const velocity = useRef(new THREE.Vector3());
   const bobPhase = useRef(0);
@@ -84,10 +91,11 @@ export function Player({
   const onRoomChangeRef = useRef(onRoomChange);
   onRoomChangeRef.current = onRoomChange;
 
-  // Initial placement: first room center, facing the closed wall (artworks).
+  // Initial placement: just inside the first room's closed entry, facing into
+  // the gallery across the ring table.
   useEffect(() => {
-    camera.position.set(0, EYE, 0);
-    camera.rotation.set(0, Math.PI / 2, 0);
+    camera.position.set(SPAWN_X, EYE, SPAWN_Z);
+    camera.rotation.set(0, -Math.PI / 2, 0);
     velocity.current.set(0, 0, 0);
   }, [camera]);
 
@@ -162,9 +170,9 @@ export function Player({
     const pos = camera.position;
 
     // Layout changed under the player (a year was removed from the manifest)
-    // — snap back to the first room instead of freezing outside all regions.
+    // — snap back to the spawn instead of freezing outside all regions.
     if (!insideAnyRegion(regions, pos.x, pos.z)) {
-      pos.set(0, EYE, 0);
+      pos.set(SPAWN_X, EYE, SPAWN_Z);
       velocity.current.set(0, 0, 0);
       return;
     }
