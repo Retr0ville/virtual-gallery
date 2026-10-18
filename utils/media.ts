@@ -58,21 +58,18 @@ export async function fetchMedia(): Promise<GalleryItem[]> {
   return data.items;
 }
 
-export function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
-
 export async function uploadImage(file: File, year?: number): Promise<GalleryItem> {
-  const dataUrl = await fileToDataUrl(file);
+  const headers: Record<string, string> = {
+    'Content-Type': file.type || 'application/octet-stream',
+    'x-file-name': encodeURIComponent(file.name),
+  };
+  if (year !== undefined) headers['x-upload-year'] = String(year);
+
+  // Send the File directly — no FileReader/base64/JSON on the main thread.
   const res = await fetch('/api/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: file.name, dataUrl, year }),
+    headers,
+    body: file,
   });
   const data = (await res.json()) as { item?: GalleryItem; error?: string };
   if (!res.ok || !data.item) throw new Error(data.error ?? 'Upload failed');

@@ -16,13 +16,25 @@ import {
 
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: '40mb',
-    },
+    bodyParser: false,
   },
 };
 
 const MAX_BYTES = 25 * 1024 * 1024;
+
+class PayloadTooLargeError extends Error {}
+
+async function readBody(req: NextApiRequest): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > MAX_BYTES) throw new PayloadTooLargeError();
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks, total);
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -32,27 +44,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!(await requireAdmin(req, res))) return;
 
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  const name = typeof body.name === 'string' ? body.name : '';
-  const dataUrl = typeof body.dataUrl === 'string' ? body.dataUrl : '';
-  if (!name || !dataUrl) {
-    return res.status(400).json({ error: 'name and dataUrl are required' });
+  const nameHeader = req.headers['x-file-name'];
+  const rawName = Array.isArray(nameHeader) ? nameHeader[0] : nameHeader;
+  let name = '';
+  try {
+    name = rawName ? decodeURIComponent(rawName) : '';
+  } catch {
+    return res.status(400).json({ error: 'Invalid file name' });
   }
 
-  const comma = dataUrl.indexOf(',');
-  const header = comma >= 0 ? dataUrl.slice(0, comma) : '';
-  if (!header.startsWith('data:image/')) {
-    return res.status(400).json({ error: 'dataUrl must be an image' });
+  const typeHeader = req.headers['content-type'];
+  const contentType = Array.isArray(typeHeader) ? typeHeader[0] : typeHeader;
+  if (!name || !contentType?.startsWith('image/')) {
+    return res.status(400).json({ error: 'An image file is required' });
   }
 
-  const base64 = dataUrl.slice(comma + 1);
-  if ((base64.length * 3) / 4 > MAX_BYTES) {
+  const contentLength = Number(req.headers['content-length']);
+  if (Number.isFinite(contentLength) && contentLength > MAX_BYTES) {
     return res.status(413).json({ error: 'Image too large (max 25MB)' });
   }
 
-  const buf = Buffer.from(base64, 'base64');
-  if (buf.length === 0 || buf.length > MAX_BYTES) {
-    return res.status(413).json({ error: 'Image too large (max 25MB)' });
+  let buf: Buffer;
+  try {
+    buf = await readBody(req);
+  } catch (err) {
+    if (err instanceof PayloadTooLargeError) {
+      return res.status(413).json({ error: 'Image too large (max 25MB)' });
+    }
+    console.error('Upload body read failed:', err);
+    return res.status(500).json({ error: 'Upload failed' });
+  }
+
+  if (buf.length === 0) {
+    return res.status(400).json({ error: 'Empty upload' });
   }
 
   const sniffedExt = sniffImage(buf);
@@ -64,7 +88,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const sanitized = sanitizeFilename(name);
   const stem = sanitized ? stemOf(sanitized) : `image-${Date.now()}`;
 
-  const year = clampYear(body.year, CURRENT_YEAR);
+  const yearHeader = req.headers['x-upload-year'];
+  const year = clampYear(Array.isArray(yearHeader) ? yearHeader[0] : yearHeader, CURRENT_YEAR);
 
   try {
     await connectToDatabase();
