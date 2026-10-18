@@ -1,4 +1,6 @@
-// Touch controls — minimal virtual joystick (bottom-left) + drag-look zone.
+// Touch controls — minimal virtual joystick (bottom-left) + drag-look on the
+// canvas itself. Listening on the canvas (not an overlay) lets R3F still
+// receive taps, so tapping an artwork opens the viewer.
 // Writes straight into shared mutable refs consumed by the Player.
 
 import { MutableRefObject, useEffect, useRef } from 'react';
@@ -10,12 +12,12 @@ interface TouchControlsProps {
   active: boolean;
   inputRef: MutableRefObject<MoveInput>;
   lookDeltaRef: MutableRefObject<LookDelta>;
+  canvasSelector: string;
 }
 
-export function TouchControls({ active, inputRef, lookDeltaRef }: TouchControlsProps) {
+export function TouchControls({ active, inputRef, lookDeltaRef, canvasSelector }: TouchControlsProps) {
   const joystickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
-  const lookRef = useRef<HTMLDivElement>(null);
   const joyTouchId = useRef<number | null>(null);
   const lookTouchId = useRef<number | null>(null);
   const lookLast = useRef({ x: 0, y: 0 });
@@ -24,7 +26,7 @@ export function TouchControls({ active, inputRef, lookDeltaRef }: TouchControlsP
     if (!active) return;
     const joy = joystickRef.current;
     const knob = knobRef.current;
-    const look = lookRef.current;
+    const look = document.querySelector<HTMLElement>(canvasSelector);
     if (!joy || !knob || !look) return;
 
     const ease = (v: number) => Math.sign(v) * Math.pow(Math.abs(v), 0.85);
@@ -112,16 +114,13 @@ export function TouchControls({ active, inputRef, lookDeltaRef }: TouchControlsP
       inputRef.current.x = 0;
       inputRef.current.z = 0;
     };
-  }, [active, inputRef, lookDeltaRef]);
+  }, [active, inputRef, lookDeltaRef, canvasSelector]);
 
   if (!active) return null;
 
   return (
-    <>
-      <div ref={lookRef} className="touch-look" />
-      <div ref={joystickRef} className="touch-joystick">
-        <div ref={knobRef} className="touch-knob" />
-      </div>
-    </>
+    <div ref={joystickRef} className="touch-joystick">
+      <div ref={knobRef} className="touch-knob" />
+    </div>
   );
 }

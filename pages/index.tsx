@@ -3,7 +3,7 @@
 import Head from 'next/head';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
-import GalleryCanvas from '../components/3d/GalleryCanvas';
+import GalleryCanvas, { CANVAS_ID } from '../components/3d/GalleryCanvas';
 import { LookDelta, MoveInput, MoveMode } from '../components/3d/Player';
 import { AdminPanel } from '../components/ui/AdminPanel';
 import { Entrance } from '../components/ui/Entrance';
@@ -169,6 +169,7 @@ export default function Home() {
             active={entered && !paused}
             inputRef={inputRef}
             lookDeltaRef={lookDeltaRef}
+            canvasSelector={`#${CANVAS_ID}`}
           />
         )}
 

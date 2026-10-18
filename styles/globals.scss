@@ -54,9 +54,11 @@ button.is-magnetic {
 .app-canvas {
   position: absolute;
   inset: 0;
+  touch-action: none;
 
   canvas {
     display: block;
+    touch-action: none;
   }
 
   // Overlay (viewer / admin / entrance) owns the pointer — don't let the
@@ -848,13 +850,6 @@ button.is-magnetic {
 }
 
 // ---- Touch controls ----
-
-.touch-look {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  touch-action: none;
-}
 
 .touch-joystick {
   position: absolute;
