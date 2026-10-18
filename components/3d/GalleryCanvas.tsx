@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { PointerLockControls as PointerLockControlsImpl } from 'three-stdlib';
 import { YearRoom, GalleryItem } from '../../utils/media';
-import { EYE, buildRegions, ceilingAt, insideAnyRegion, insideFlightBounds } from '../../utils/layout';
+import { EYE, R, buildRegions, ceilingAt, insideAnyRegion, insideFlightBounds, roomCenterX } from '../../utils/layout';
 import { themeForRoom } from '../../utils/themes';
 import { RoomArtworks } from './Artwork';
 import { Beams } from './Beams';
@@ -160,6 +160,14 @@ function ClickNavigator({
           ? insideAnyRegion(regions, dest.x, dest.z)
           : insideFlightBounds(regions, dest.x, dest.z);
       if (!reachable) return;
+
+      // Locked doors are barriers for click-travel too: never cross the cut
+      // plane of a locked corridor, even though the room beyond is rendered.
+      for (let i = 0; i < roomCount - 1; i++) {
+        if (!lockedCorridors[i]) continue;
+        const cutX = roomCenterX(i + 1) - R - 0.12;
+        if ((camera.position.x > cutX) !== (dest.x > cutX)) return;
+      }
 
       flyToRef.current = { position: dest, lookAt, onArrive };
     };
