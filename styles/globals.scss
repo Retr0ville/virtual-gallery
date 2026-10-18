@@ -35,6 +35,15 @@ button {
   font-family: inherit;
 }
 
+// Magnetic hover — MagneticHover.tsx feeds these vars per button. Uses the
+// separate `translate` property so each button's own transform is untouched.
+button.is-magnetic {
+  translate: var(--pull-x, 0px) var(--pull-y, 0px);
+  transition: translate 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s ease, border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  will-change: translate;
+}
+
 // ---- App shell ----
 
 .app {
@@ -131,7 +140,7 @@ button {
   left: 32px;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.42em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--text);
   opacity: 0.85;
@@ -243,6 +252,11 @@ button {
     border-color: rgba(201, 168, 106, 0.6);
     color: var(--accent);
   }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
 }
 
 // ---- Entrance ----
@@ -265,12 +279,15 @@ button {
 }
 
 .entrance-wordmark {
-  font-size: 22px;
+  font-size: clamp(16px, 4.4vw, 24px);
   font-weight: 500;
-  letter-spacing: 0.6em;
-  text-indent: 0.6em;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  line-height: 1.15;
   text-transform: uppercase;
   color: var(--text);
+  text-align: center;
+  max-width: 92vw;
 }
 
 .entrance-sub {
@@ -295,28 +312,13 @@ button {
   }
 }
 
-.entrance-btn {
+.entrance-enter {
   margin-top: 40px;
-  padding: 13px 52px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: transparent;
-  color: var(--text);
+  height: 46px;
+  padding: 0 38px;
+  min-width: 190px;
   font-size: 11px;
-  letter-spacing: 0.34em;
-  text-indent: 0.34em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 0.25s ease, color 0.25s ease, background 0.25s ease;
-
-  &:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
+  letter-spacing: 0.3em;
 }
 
 .entrance-hint {
@@ -325,6 +327,164 @@ button {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+// Private admin entry — deliberately quiet, bottom-right of the welcome screen.
+.entrance-admin {
+  position: absolute;
+  right: 30px;
+  bottom: 26px;
+  padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: color 0.25s ease, opacity 0.25s ease;
+
+  &:hover {
+    color: var(--accent);
+    opacity: 1;
+  }
+}
+
+.simi-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 9, 0.55);
+  backdrop-filter: blur(6px);
+  animation: simi-fade-in 240ms ease both;
+}
+
+.simi-modal {
+  width: min(330px, 88vw);
+  padding: 26px 26px 22px;
+  background: var(--panel-solid);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: simi-rise-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.simi-kicker {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.simi-title {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.simi-field {
+  display: block;
+  margin-top: 18px;
+
+  span {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  input {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+
+    &:focus {
+      border-color: rgba(201, 168, 106, 0.65);
+      background: rgba(255, 255, 255, 0.06);
+    }
+  }
+}
+
+.simi-error {
+  margin-top: 12px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--danger);
+}
+
+.simi-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.simi-cancel,
+.simi-submit {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.simi-cancel {
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-dim);
+
+  &:hover {
+    color: var(--text);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+}
+
+.simi-submit {
+  border: 1px solid rgba(201, 168, 106, 0.55);
+  background: rgba(201, 168, 106, 0.12);
+  color: var(--accent);
+
+  &:hover {
+    background: rgba(201, 168, 106, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+@keyframes simi-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes simi-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
 }
 
 // ---- Viewer ----
@@ -337,13 +497,80 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  // Soft hand-off from the 3D scene: veil fades in, print settles into place.
+  animation: viewer-veil-in 420ms ease both;
+}
+
+.viewer-stage {
+  position: absolute;
+  inset: 0;
+  perspective-origin: 50% 50%;
+  overflow: hidden;
+}
+
+.viewer-cylinder {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.viewer-slide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 90vw;
+  height: 80vh;
+  translate: -50% -50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.viewer-slide-backdrop {
+  position: absolute;
+  inset: 0;
+  opacity: 0.85;
+  transition: background 0.5s ease;
 }
 
 .viewer-image {
-  max-width: 90vw;
-  max-height: 80vh;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7);
+  animation: viewer-image-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+}
+
+.viewer-bar,
+.viewer-nav,
+.viewer-caption {
+  animation: viewer-ui-in 420ms ease 180ms both;
+}
+
+@keyframes viewer-veil-in {
+  from {
+    background: rgba(9, 9, 10, 0);
+  }
+}
+
+@keyframes viewer-image-in {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+}
+
+@keyframes viewer-ui-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .viewer-bar {
@@ -376,8 +603,16 @@ button {
 .viewer-nav {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
   z-index: 1;
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  // Magnetic drift is applied globally via the `translate` property.
+  transform: translateY(-50%);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
 
   &.viewer-nav-prev {
     left: 28px;
@@ -441,6 +676,24 @@ button {
   flex: 1;
   overflow-y: auto;
   padding: 22px 26px 40px;
+}
+
+.admin-year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+
+  .admin-input {
+    width: 96px;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
 }
 
 .admin-drop {

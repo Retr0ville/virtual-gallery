@@ -4,12 +4,14 @@ export const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'avif'] as const;
 export const CURRENT_YEAR = new Date().getFullYear();
 
 export interface GalleryItem {
-  filename: string;
+  publicId: string;
   url: string;
   title: string;
   year: number;
   description: string;
   order: number;
+  width?: number;
+  height?: number;
 }
 
 export interface ManifestEntry {
@@ -43,7 +45,7 @@ export function groupByYear(items: GalleryItem[]): YearRoom[] {
       year,
       items: list
         .slice()
-        .sort((a, b) => a.order - b.order || a.filename.localeCompare(b.filename)),
+        .sort((a, b) => a.order - b.order || a.publicId.localeCompare(b.publicId)),
     }));
 }
 
@@ -65,12 +67,12 @@ export function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-export async function uploadImage(file: File): Promise<GalleryItem> {
+export async function uploadImage(file: File, year?: number): Promise<GalleryItem> {
   const dataUrl = await fileToDataUrl(file);
   const res = await fetch('/api/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: file.name, dataUrl }),
+    body: JSON.stringify({ name: file.name, dataUrl, year }),
   });
   const data = (await res.json()) as { item?: GalleryItem; error?: string };
   if (!res.ok || !data.item) throw new Error(data.error ?? 'Upload failed');
@@ -78,24 +80,24 @@ export async function uploadImage(file: File): Promise<GalleryItem> {
 }
 
 export async function updateMediaItem(
-  filename: string,
+  publicId: string,
   patch: Partial<Pick<GalleryItem, 'title' | 'year' | 'description' | 'order'>>
 ): Promise<GalleryItem> {
   const res = await fetch('/api/media', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, ...patch }),
+    body: JSON.stringify({ publicId, ...patch }),
   });
   const data = (await res.json()) as { item?: GalleryItem; error?: string };
   if (!res.ok || !data.item) throw new Error(data.error ?? 'Update failed');
   return data.item;
 }
 
-export async function deleteMediaItem(filename: string): Promise<void> {
+export async function deleteMediaItem(publicId: string): Promise<void> {
   const res = await fetch('/api/media', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename }),
+    body: JSON.stringify({ publicId }),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };

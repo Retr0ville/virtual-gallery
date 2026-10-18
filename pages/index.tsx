@@ -21,6 +21,7 @@ export default function Home() {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
   const [hovered, setHovered] = useState<GalleryItem | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
 
   const inputRef = useRef<MoveInput>({ x: 0, z: 0 });
@@ -29,6 +30,18 @@ export default function Home() {
 
   useEffect(() => {
     setIsTouch(window.matchMedia('(pointer: coarse)').matches);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/admin-login')
+      .then((res) => res.json())
+      .then((data: { authenticated?: boolean }) => setAdminAuthed(Boolean(data.authenticated)))
+      .catch(() => setAdminAuthed(false));
+  }, []);
+
+  const handleAdminLogin = useCallback(() => {
+    setAdminAuthed(true);
+    setAdminOpen(true);
   }, []);
 
   const loadItems = useCallback(async () => {
@@ -85,6 +98,8 @@ export default function Home() {
   }, []);
 
   const handleArtworkSelect = useCallback((item: GalleryItem) => {
+    // Drop pointer lock before the viewer mounts so the cursor is free.
+    if (document.pointerLockElement) document.exitPointerLock();
     setSelected(item);
   }, []);
 
@@ -96,7 +111,7 @@ export default function Home() {
     (dir: 1 | -1) => {
       setSelected((cur) => {
         if (!cur || flatItems.length === 0) return cur;
-        const idx = flatItems.findIndex((i) => i.filename === cur.filename);
+        const idx = flatItems.findIndex((i) => i.publicId === cur.publicId);
         if (idx === -1) return cur;
         return flatItems[(idx + dir + flatItems.length) % flatItems.length];
       });
@@ -107,7 +122,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Gallery</title>
+        <title>Similoluwa's Gallery</title>
         <meta name="description" content="A virtual walk through the years" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -134,6 +149,7 @@ export default function Home() {
           roomItemCount={activeRoom?.items.length ?? 0}
           entered={entered}
           isTouch={isTouch}
+          canManage={adminAuthed}
           onToggleMode={handleModeToggle}
           onOpenAdmin={() => setAdminOpen(true)}
         />
@@ -149,6 +165,7 @@ export default function Home() {
         {selected && (
           <Viewer
             item={selected}
+            items={flatItems}
             onClose={() => setSelected(null)}
             onNext={() => handleStep(1)}
             onPrev={() => handleStep(-1)}
@@ -162,7 +179,7 @@ export default function Home() {
           onChanged={loadItems}
         />
 
-        <Entrance onEnter={handleEnter} />
+        <Entrance onEnter={handleEnter} onAdminLogin={handleAdminLogin} />
 
         {error && (
           <button className="app-error" onClick={loadItems}>

@@ -12,6 +12,7 @@ interface HUDProps {
   roomItemCount: number;
   entered: boolean;
   isTouch: boolean;
+  canManage: boolean;
   onToggleMode: () => void;
   onOpenAdmin: () => void;
 }
@@ -23,6 +24,7 @@ export function HUD({
   roomItemCount,
   entered,
   isTouch,
+  canManage,
   onToggleMode,
   onOpenAdmin,
 }: HUDProps) {
@@ -36,7 +38,7 @@ export function HUD({
   if (!entered) return null;
 
   const hint =
-    roomItemCount === 0
+    roomItemCount === 0 && canManage
       ? 'No artworks yet — open the panel to upload'
       : mode === 'walk'
         ? 'WASD move · Shift sprint · F fly · Esc release cursor'
@@ -44,7 +46,7 @@ export function HUD({
 
   return (
     <div className="hud">
-      <div className="hud-wordmark">Gallery</div>
+      <div className="hud-wordmark">SIMILOLUWA'S GALLERY</div>
       <div className={`hud-year ${year !== null ? 'is-visible' : ''}`}>{year ?? ''}</div>
       {!isTouch && <div className="hud-crosshair" />}
 
@@ -60,12 +62,19 @@ export function HUD({
       <div className={`hud-hint ${hintVisible ? '' : 'is-hidden'}`}>{hint}</div>
 
       <div className="hud-actions">
-        <button className="hud-chip" onClick={onToggleMode}>
+        <button className="hud-chip magnet-soft" onClick={onToggleMode}>
           {mode === 'walk' ? 'Fly' : 'Walk'}
         </button>
-        <button className="icon-btn" onClick={onOpenAdmin} aria-label="Manage gallery" title="Manage gallery">
-          <AdjustIcon />
-        </button>
+        {canManage && (
+          <button
+            className="icon-btn magnet-soft"
+            onClick={onOpenAdmin}
+            aria-label="Manage gallery"
+            title="Manage gallery"
+          >
+            <AdjustIcon />
+          </button>
+        )}
       </div>
     </div>
   );

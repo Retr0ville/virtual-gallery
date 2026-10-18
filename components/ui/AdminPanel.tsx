@@ -2,7 +2,9 @@
 // reorder within a year, delete with inline confirm.
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react';
+import { CldImage } from 'next-cloudinary';
 import {
+  CURRENT_YEAR,
   GalleryItem,
   deleteMediaItem,
   updateMediaItem,
@@ -26,13 +28,14 @@ interface UploadJob {
 function sortItems(items: GalleryItem[]): GalleryItem[] {
   return items
     .slice()
-    .sort((a, b) => a.year - b.year || a.order - b.order || a.filename.localeCompare(b.filename));
+    .sort((a, b) => a.year - b.year || a.order - b.order || a.publicId.localeCompare(b.publicId));
 }
 
 export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps) {
   const [dragOver, setDragOver] = useState(false);
   const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [uploadYear, setUploadYear] = useState(String(CURRENT_YEAR));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -42,16 +45,32 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
     };
   }, []);
 
+  // Escape closes the panel, matching the viewer.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   const handleFiles = async (files: FileList | File[]) => {
     const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (images.length === 0) return;
+    // Year field applies to the whole batch; bad input falls back to today.
+    const parsedYear = Math.round(Number(uploadYear));
+    const year =
+      Number.isFinite(parsedYear) && parsedYear >= 1900 && parsedYear <= 2200
+        ? parsedYear
+        : CURRENT_YEAR;
     const newJobs: UploadJob[] = images.map((f) => ({ name: f.name, status: 'uploading' }));
     setJobs((prev) => [...prev, ...newJobs]);
     let any = false;
     for (let i = 0; i < images.length; i++) {
       const file = images[i];
       try {
-        await uploadImage(file);
+        await uploadImage(file, year);
         any = true;
         setJobs((prev) =>
           prev.filter((j) => !(j.name === file.name && j.status === 'uploading'))
@@ -81,9 +100,9 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
     e.target.value = '';
   };
 
-  const commitField = async (filename: string, patch: Partial<Pick<GalleryItem, 'title' | 'year' | 'description'>>) => {
+  const commitField = async (publicId: string, patch: Partial<Pick<GalleryItem, 'title' | 'year' | 'description'>>) => {
     try {
-      await updateMediaItem(filename, patch);
+      await updateMediaItem(publicId, patch);
       onChanged();
     } catch {
       // Silent — list refetch below restores server truth.
@@ -91,16 +110,16 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
     }
   };
 
-  const handleDeleteClick = async (filename: string) => {
-    if (confirmDelete !== filename) {
-      setConfirmDelete(filename);
+  const handleDeleteClick = async (publicId: string) => {
+    if (confirmDelete !== publicId) {
+      setConfirmDelete(publicId);
       if (confirmTimer.current) clearTimeout(confirmTimer.current);
       confirmTimer.current = setTimeout(() => setConfirmDelete(null), 3000);
       return;
     }
     setConfirmDelete(null);
     try {
-      await deleteMediaItem(filename);
+      await deleteMediaItem(publicId);
     } finally {
       onChanged();
     }
@@ -108,14 +127,14 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
 
   const handleMove = async (item: GalleryItem, dir: -1 | 1) => {
     const yearItems = sortItems(items.filter((i) => i.year === item.year));
-    const idx = yearItems.findIndex((i) => i.filename === item.filename);
+    const idx = yearItems.findIndex((i) => i.publicId === item.publicId);
     const swapWith = yearItems[idx + dir];
     if (!swapWith) return;
     const a = item.order;
     const b = swapWith.order;
     try {
-      await updateMediaItem(item.filename, { order: b });
-      await updateMediaItem(swapWith.filename, { order: a });
+      await updateMediaItem(item.publicId, { order: b });
+      await updateMediaItem(swapWith.publicId, { order: a });
     } finally {
       onChanged();
     }
@@ -133,6 +152,24 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
       </div>
 
       <div className="admin-body">
+        <div className="admin-year">
+          <span>Upload year</span>
+          <input
+            className="admin-input admin-input-year"
+            type="number"
+            min={1900}
+            max={2200}
+            value={uploadYear}
+            aria-label="Year for new uploads"
+            onChange={(e) => setUploadYear(e.target.value)}
+            onBlur={() => {
+              const n = Math.round(Number(uploadYear));
+              if (!Number.isFinite(n) || n < 1900 || n > 2200) {
+                setUploadYear(String(CURRENT_YEAR));
+              }
+            }}
+          />
+        </div>
         <div
           className={`admin-drop ${dragOver ? 'is-dragover' : ''}`}
           onDragOver={(e) => {
@@ -170,16 +207,24 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
         ) : (
           <div className="admin-list">
             {sorted.map((item) => (
-              <div className="admin-item" key={item.filename}>
-                <img className="admin-thumb" src={item.url} alt="" loading="lazy" />
+              <div className="admin-item" key={item.publicId}>
+                <CldImage
+                  className="admin-thumb"
+                  src={item.publicId}
+                  width={58}
+                  height={58}
+                  crop="fill"
+                  alt=""
+                  loading="lazy"
+                />
                 <div className="admin-fields">
                   <input
                     className="admin-input"
                     defaultValue={item.title}
-                    key={`${item.filename}-title`}
+                    key={`${item.publicId}-title`}
                     placeholder="Title"
                     onBlur={(e) => {
-                      if (e.target.value !== item.title) commitField(item.filename, { title: e.target.value });
+                      if (e.target.value !== item.title) commitField(item.publicId, { title: e.target.value });
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -188,10 +233,10 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
                   <input
                     className="admin-input"
                     defaultValue={item.description}
-                    key={`${item.filename}-desc`}
+                    key={`${item.publicId}-desc`}
                     placeholder="Description"
                     onBlur={(e) => {
-                      if (e.target.value !== item.description) commitField(item.filename, { description: e.target.value });
+                      if (e.target.value !== item.description) commitField(item.publicId, { description: e.target.value });
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -202,13 +247,13 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
                       className="admin-input admin-input-year"
                       type="number"
                       defaultValue={item.year}
-                      key={`${item.filename}-year`}
+                      key={`${item.publicId}-year`}
                       min={1900}
                       max={2200}
                       placeholder="Year"
                       onBlur={(e) => {
                         const year = Number(e.target.value);
-                        if (Number.isFinite(year) && year !== item.year) commitField(item.filename, { year });
+                        if (Number.isFinite(year) && year !== item.year) commitField(item.publicId, { year });
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -234,10 +279,10 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
                     <ArrowDownIcon />
                   </button>
                   <button
-                    className={`icon-btn ${confirmDelete === item.filename ? 'is-danger' : ''}`}
-                    onClick={() => handleDeleteClick(item.filename)}
-                    aria-label={confirmDelete === item.filename ? 'Confirm delete' : 'Delete'}
-                    title={confirmDelete === item.filename ? 'Click again to confirm' : 'Delete'}
+                    className={`icon-btn ${confirmDelete === item.publicId ? 'is-danger' : ''}`}
+                    onClick={() => handleDeleteClick(item.publicId)}
+                    aria-label={confirmDelete === item.publicId ? 'Confirm delete' : 'Delete'}
+                    title={confirmDelete === item.publicId ? 'Click again to confirm' : 'Delete'}
                   >
                     <TrashIcon />
                   </button>

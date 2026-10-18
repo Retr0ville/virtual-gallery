@@ -1,20 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs';
-import path from 'path';
+import { type UploadApiResponse } from 'cloudinary';
 import { CURRENT_YEAR } from '../../utils/media';
+import { CLOUDINARY_FOLDER, cloudinary } from '../../utils/cloudinary';
+import { connectToDatabase } from '../../utils/db';
+import { GalleryItemModel } from '../../utils/models/GalleryItem';
+import { requireAdmin } from '../../utils/server-auth';
 import {
-  GALLERY_DIR,
-  ensureDirs,
-  galleryItem,
-  nextOrderForYear,
+  clampYear,
   prettifyStem,
-  readGalleryItems,
-  readManifest,
   sanitizeFilename,
   sniffImage,
   stemOf,
-  uniquify,
-  writeManifest,
+  toGalleryItem,
 } from '../../utils/server-media';
 
 export const config = {
@@ -32,6 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  if (!(await requireAdmin(req, res))) return;
 
   const body = (req.body ?? {}) as Record<string, unknown>;
   const name = typeof body.name === 'string' ? body.name : '';
@@ -61,24 +60,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Unsupported image format (jpg, png, webp, avif)' });
   }
 
-  // Sanitized stem from the client name; extension always from content sniff.
+  // Sanitized stem becomes the Cloudinary public_id prefix.
   const sanitized = sanitizeFilename(name);
   const stem = sanitized ? stemOf(sanitized) : `image-${Date.now()}`;
-  const safe = `${stem}.${sniffedExt}`;
 
-  ensureDirs();
-  const filename = uniquify(safe);
-  fs.writeFileSync(path.join(GALLERY_DIR, filename), buf);
+  const year = clampYear(body.year, CURRENT_YEAR);
 
-  const manifest = readManifest();
-  const items = readGalleryItems();
-  manifest.items[filename] = {
-    title: prettifyStem(stem) || filename,
-    year: CURRENT_YEAR,
-    description: '',
-    order: nextOrderForYear(items, CURRENT_YEAR),
-  };
-  writeManifest(manifest);
+  try {
+    await connectToDatabase();
 
-  return res.status(200).json({ item: galleryItem(filename) });
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: CLOUDINARY_FOLDER,
+          public_id: stem,
+          unique_filename: true,
+          overwrite: false,
+          resource_type: 'image',
+        },
+        (error, uploaded) => {
+          if (error || !uploaded) {
+            return reject(error ?? new Error('Cloudinary upload failed'));
+          }
+          resolve(uploaded);
+        }
+      );
+      stream.end(buf);
+    });
+
+    const last = await GalleryItemModel.findOne({ year })
+      .sort({ order: -1 })
+      .select('order')
+      .lean();
+
+    let doc;
+    try {
+      doc = await GalleryItemModel.create({
+        publicId: result.public_id,
+        url: result.secure_url,
+        title: prettifyStem(stem) || stem,
+        year,
+        description: '',
+        order: last ? last.order + 1 : 1,
+        width: result.width,
+        height: result.height,
+        format: result.format,
+        bytes: result.bytes,
+      });
+    } catch (dbError) {
+      // Don't leave an orphaned asset when metadata persistence fails.
+      await cloudinary.uploader
+        .destroy(result.public_id, { resource_type: 'image', invalidate: true })
+        .catch(() => undefined);
+      throw dbError;
+    }
+
+    return res.status(200).json({ item: toGalleryItem(doc) });
+  } catch (err) {
+    console.error('Upload failed:', err);
+    return res.status(500).json({ error: 'Upload failed' });
+  }
 }
