@@ -805,11 +805,6 @@ button.is-magnetic {
       height: 13px;
     }
   }
-
-  .icon-btn.is-danger:hover {
-    color: var(--danger);
-    border-color: rgba(194, 91, 91, 0.5);
-  }
 }
 
 .admin-empty {
@@ -819,6 +814,37 @@ button.is-magnetic {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+.admin-confirm-text {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.admin-confirm-delete {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  border: 1px solid rgba(194, 91, 91, 0.55);
+  background: rgba(194, 91, 91, 0.14);
+  color: var(--danger);
+  transition: background 0.2s ease, opacity 0.2s ease;
+
+  &:hover {
+    background: rgba(194, 91, 91, 0.22);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
 }
 
 // ---- Touch controls ----

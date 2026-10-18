@@ -34,26 +34,26 @@ function sortItems(items: GalleryItem[]): GalleryItem[] {
 export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps) {
   const [dragOver, setDragOver] = useState(false);
   const [jobs, setJobs] = useState<UploadJob[]>([]);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<GalleryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [uploadYear, setUploadYear] = useState(String(CURRENT_YEAR));
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (confirmTimer.current) clearTimeout(confirmTimer.current);
-    };
-  }, []);
-
-  // Escape closes the panel, matching the viewer.
+  // Escape closes the confirm dialog first, then the panel.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (pendingDelete) {
+        if (!deleting) setPendingDelete(null);
+        return;
+      }
+      onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, pendingDelete, deleting]);
 
   const handleFiles = async (files: FileList | File[]) => {
     const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
@@ -110,18 +110,23 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
     }
   };
 
-  const handleDeleteClick = async (publicId: string) => {
-    if (confirmDelete !== publicId) {
-      setConfirmDelete(publicId);
-      if (confirmTimer.current) clearTimeout(confirmTimer.current);
-      confirmTimer.current = setTimeout(() => setConfirmDelete(null), 3000);
-      return;
-    }
-    setConfirmDelete(null);
+  const handleDeleteClick = (item: GalleryItem) => {
+    setDeleteError(null);
+    setPendingDelete(item);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
     try {
-      await deleteMediaItem(publicId);
-    } finally {
+      await deleteMediaItem(pendingDelete.publicId);
+      setPendingDelete(null);
       onChanged();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -279,10 +284,10 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
                     <ArrowDownIcon />
                   </button>
                   <button
-                    className={`icon-btn ${confirmDelete === item.publicId ? 'is-danger' : ''}`}
-                    onClick={() => handleDeleteClick(item.publicId)}
-                    aria-label={confirmDelete === item.publicId ? 'Confirm delete' : 'Delete'}
-                    title={confirmDelete === item.publicId ? 'Click again to confirm' : 'Delete'}
+                    className="icon-btn"
+                    onClick={() => handleDeleteClick(item)}
+                    aria-label="Delete"
+                    title="Delete"
                   >
                     <TrashIcon />
                   </button>
@@ -292,6 +297,34 @@ export function AdminPanel({ open, items, onClose, onChanged }: AdminPanelProps)
           </div>
         )}
       </div>
+
+      {pendingDelete && (
+        <div
+          className="simi-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !deleting) setPendingDelete(null);
+          }}
+        >
+          <div className="simi-modal" role="dialog" aria-modal="true" aria-label="Confirm delete">
+            <div className="simi-kicker">Delete artwork</div>
+            <p className="admin-confirm-text">This can't be undone.</p>
+            {deleteError && <div className="simi-error">{deleteError}</div>}
+            <div className="simi-actions">
+              <button
+                className="simi-cancel"
+                onClick={() => setPendingDelete(null)}
+                disabled={deleting}
+                autoFocus
+              >
+                Keep
+              </button>
+              <button className="admin-confirm-delete" onClick={confirmDelete} disabled={deleting}>
+                {deleting ? 'Removing' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
