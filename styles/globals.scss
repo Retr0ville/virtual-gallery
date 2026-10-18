@@ -261,6 +261,19 @@ button.is-magnetic {
   }
 }
 
+.hud-chip-icon {
+  width: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
 // ---- Entrance ----
 
 .entrance {

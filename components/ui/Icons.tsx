@@ -82,3 +82,22 @@ export function ImagePlusIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function SoundOnIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 9.5v5h3.2L12 18.2V5.8L7.2 9.5H4z" />
+      <path d="M15.2 9.2a4 4 0 0 1 0 5.6" />
+      <path d="M17.6 6.8a7.4 7.4 0 0 1 0 10.4" />
+    </svg>
+  );
+}
+
+export function SoundOffIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 9.5v5h3.2L12 18.2V5.8L7.2 9.5H4z" />
+      <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" />
+    </svg>
+  );
+}

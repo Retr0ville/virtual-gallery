@@ -17,6 +17,7 @@ import { GalleryFloor } from './GalleryFloor';
 import { Lighting } from './Lighting';
 import { FlyTarget, LookDelta, MoveInput, MoveMode, Player } from './Player';
 import { Room } from './Room';
+import { TurntableAudio } from './TurntableAudio';
 
 export const BG_COLOR = '#e9e4da';
 export const CANVAS_ID = 'gallery-canvas';
@@ -66,6 +67,7 @@ interface ClickNavigatorProps {
   lockedCorridors: readonly boolean[];
   flyToRef: MutableRefObject<FlyTarget | null>;
   onArtworkSelect: (item: GalleryItem) => void;
+  onToggleSound: () => void;
 }
 
 // Any click on a surface glides the camera there. Artwork clicks target a
@@ -77,6 +79,7 @@ function ClickNavigator({
   lockedCorridors,
   flyToRef,
   onArtworkSelect,
+  onToggleSound,
 }: ClickNavigatorProps) {
   const camera = useThree((s) => s.camera);
   const scene = useThree((s) => s.scene);
@@ -110,8 +113,18 @@ function ClickNavigator({
       if (!hit) return;
 
       let tagged: THREE.Object3D | null = hit.object;
-      while (tagged && !(tagged.userData.artwork as GalleryItem | undefined)) {
+      let turntable = false;
+      while (tagged) {
+        if (tagged.userData.artwork) break;
+        if (tagged.userData.turntable) {
+          turntable = true;
+          break;
+        }
         tagged = tagged.parent;
+      }
+      if (turntable) {
+        onToggleSound();
+        return;
       }
       const artwork = tagged?.userData.artwork as GalleryItem | undefined;
 
@@ -174,7 +187,7 @@ function ClickNavigator({
 
     el.addEventListener('click', handleClick);
     return () => el.removeEventListener('click', handleClick);
-  }, [enabled, mode, roomCount, lockedCorridors, flyToRef, onArtworkSelect, camera, scene, gl]);
+  }, [enabled, mode, roomCount, lockedCorridors, flyToRef, onArtworkSelect, onToggleSound, camera, scene, gl]);
 
   return null;
 }
@@ -188,10 +201,12 @@ interface GalleryCanvasProps {
   inputRef: MutableRefObject<MoveInput>;
   lookDeltaRef: MutableRefObject<LookDelta>;
   flyToRef: MutableRefObject<FlyTarget | null>;
+  musicPlaying: boolean;
   onModeToggle: () => void;
   onRoomChange: (index: number) => void;
   onArtworkSelect: (item: GalleryItem) => void;
   onArtworkHover: (item: GalleryItem | null) => void;
+  onToggleSound: () => void;
 }
 
 export default function GalleryCanvas({
@@ -203,10 +218,12 @@ export default function GalleryCanvas({
   inputRef,
   lookDeltaRef,
   flyToRef,
+  musicPlaying,
   onModeToggle,
   onRoomChange,
   onArtworkSelect,
   onArtworkHover,
+  onToggleSound,
 }: GalleryCanvasProps) {
   // A corridor into a room whose year hasn't arrived yet is sealed by a
   // locked door: rooms open on her birthday, Oct 15 of their own year.
@@ -238,6 +255,7 @@ export default function GalleryCanvas({
         <Lighting roomCount={rooms.length} />
         <Beams roomCount={rooms.length} />
         <GalleryFloor roomCount={rooms.length} />
+        <TurntableAudio roomCount={rooms.length} playing={musicPlaying} />
         <ClickNavigator
           enabled={enabled}
           mode={mode}
@@ -245,13 +263,14 @@ export default function GalleryCanvas({
           lockedCorridors={lockedCorridors}
           flyToRef={flyToRef}
           onArtworkSelect={onArtworkSelect}
+          onToggleSound={onToggleSound}
         />
 
         <Suspense fallback={null}>
           {rooms.map((room, i) => (
             <group key={room.year}>
               <Room index={i} year={room.year} roomCount={rooms.length} theme={themeForRoom(i)} />
-              <Centerpiece index={i} year={room.year} theme={themeForRoom(i)} />
+              <Centerpiece index={i} year={room.year} theme={themeForRoom(i)} playing={musicPlaying} />
               <Suspense fallback={null}>
                 <RoomArtworks
                   roomIndex={i}

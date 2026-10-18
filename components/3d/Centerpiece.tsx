@@ -11,16 +11,21 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { createTextDerivedMaterial } from 'troika-three-text';
-import { TABLE_INNER, TABLE_OUTER, TABLE_SLIT, roomCenterX } from '../../utils/layout';
+import { TABLE_INNER, TABLE_OUTER, TABLE_SLIT, SPAWN_X, SPAWN_Z, roomCenterX } from '../../utils/layout';
 import { makeMedallionTexture, makeMoteTexture } from '../../utils/textures';
 import { RoomTheme } from '../../utils/themes';
 import { roomCameraFade } from './Lighting';
+import { Turntable } from './Turntable';
 
 const TABLE_H = 0.78; // glass height — seated-table height
 const PIECE_X = -3.9; // west band of the glass, straight ahead of the spawn view
 const PIECE_Z = 0;
 const DISPLAY_H = 0.9; // GLB max height on the table
 const DISPLAY_W = 2.5; // GLB max footprint on the glass
+// Record player rests on the glass band, angled toward the spawn view.
+const TURNTABLE_X = -3.4;
+const TURNTABLE_Z = 2.5;
+const TURNTABLE_YAW = Math.atan2(SPAWN_X - TURNTABLE_X, SPAWN_Z - TURNTABLE_Z);
 const LEG_R = 4.95; // leg ring radius
 const LEGS = 12; // one per seated guest
 const BRASS = '#c8a24a';
@@ -649,9 +654,10 @@ interface CenterpieceProps {
   index: number;
   year: number;
   theme: RoomTheme;
+  playing: boolean;
 }
 
-export function Centerpiece({ index, year, theme }: CenterpieceProps) {
+export function Centerpiece({ index, year, theme, playing }: CenterpieceProps) {
   const medallion = useMemo(() => makeMedallionTexture(year), [year]);
   useEffect(() => () => medallion.dispose(), [medallion]);
 
@@ -669,6 +675,9 @@ export function Centerpiece({ index, year, theme }: CenterpieceProps) {
       <MoteField accent={theme.accent} index={index} />
       <BalloonScatter theme={theme} index={index} />
       <LetterScatter index={index} />
+      <group position={[TURNTABLE_X, TABLE_H, TURNTABLE_Z]} rotation-y={TURNTABLE_YAW}>
+        <Turntable playing={playing} />
+      </group>
       {theme.model && <GlbDisplay url={theme.model} />}
     </group>
   );

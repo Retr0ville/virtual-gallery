@@ -24,6 +24,7 @@ export default function Home() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
+  const [soundOn, setSoundOn] = useState(false);
 
   const inputRef = useRef<MoveInput>({ x: 0, z: 0 });
   const lookDeltaRef = useRef<LookDelta>({ dx: 0, dy: 0 });
@@ -35,6 +36,12 @@ export default function Home() {
 
   useEffect(() => {
     setIsTouch(window.matchMedia('(pointer: coarse)').matches);
+  }, []);
+
+  // The turntable scene object owns playback (positional audio); this state
+  // only says whether it should be playing.
+  const handleToggleSound = useCallback(() => {
+    setSoundOn((on) => !on);
   }, []);
 
   useEffect(() => {
@@ -92,6 +99,7 @@ export default function Home() {
 
   const handleEnter = useCallback(() => {
     setEntered(true);
+    setSoundOn(true);
     const dom = controlsRef.current?.domElement;
     if (!dom) return;
     try {
@@ -150,10 +158,12 @@ export default function Home() {
           inputRef={inputRef}
           lookDeltaRef={lookDeltaRef}
           flyToRef={flyToRef}
+          musicPlaying={soundOn}
           onModeToggle={handleModeToggle}
           onRoomChange={handleRoomChange}
           onArtworkSelect={handleArtworkSelect}
           onArtworkHover={handleArtworkHover}
+          onToggleSound={handleToggleSound}
         />
 
         <HUD
@@ -163,7 +173,9 @@ export default function Home() {
           roomItemCount={activeRoom?.items.length ?? 0}
           entered={entered}
           isTouch={isTouch}
+          soundOn={soundOn}
           onToggleMode={handleModeToggle}
+          onToggleSound={handleToggleSound}
         />
 
         {isTouch && (

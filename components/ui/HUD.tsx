@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { GalleryItem } from '../../utils/media';
 import { MoveMode } from '../3d/Player';
+import { SoundOffIcon, SoundOnIcon } from './Icons';
 
 interface HUDProps {
   mode: MoveMode;
@@ -11,7 +12,9 @@ interface HUDProps {
   roomItemCount: number;
   entered: boolean;
   isTouch: boolean;
+  soundOn: boolean;
   onToggleMode: () => void;
+  onToggleSound: () => void;
 }
 
 export function HUD({
@@ -21,7 +24,9 @@ export function HUD({
   roomItemCount,
   entered,
   isTouch,
+  soundOn,
   onToggleMode,
+  onToggleSound,
 }: HUDProps) {
   const [hintVisible, setHintVisible] = useState(true);
 
@@ -59,6 +64,14 @@ export function HUD({
       <div className={`hud-hint ${hintVisible ? '' : 'is-hidden'}`}>{hint}</div>
 
       <div className="hud-actions">
+        <button
+          className="hud-chip hud-chip-icon magnet-soft"
+          onClick={onToggleSound}
+          aria-label={soundOn ? 'Mute music' : 'Play music'}
+          title={soundOn ? 'Mute music' : 'Play music'}
+        >
+          {soundOn ? <SoundOnIcon /> : <SoundOffIcon />}
+        </button>
         <button className="hud-chip magnet-soft" onClick={onToggleMode}>
           {mode === 'walk' ? 'Fly' : 'Walk'}
         </button>
