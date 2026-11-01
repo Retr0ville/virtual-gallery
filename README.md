@@ -2,7 +2,15 @@
 
 a first-person 3D gallery where each circular room (rotunda) represents one year of artworks, chained by corridors from oldest to newest.
 
+# Url: https://virtual-gallery-zeta-one.vercel.app
+
+## Stack
 Built with Next.js 14 (Pages Router), React Three Fiber, drei and three.js. No external asset CDNs, no placeholder services — everything renders locally with PBR materials and canvas-generated signage.
+
+## Services
+> Database: MongoDB
+> Image Hosting: Cloudinary
+> CDN: Vercel
 
 ## Features
 
@@ -33,6 +41,7 @@ Open http://localhost:3000.
 | `/api/upload` | `POST` | upload `{ name, dataUrl }` (image only, ≤ 25 MB) |
 
 Uploads are content-sniffed (jpeg/png/webp/avif), filenames are sanitized and uniquified, and path traversal is rejected. Files dropped into `public/gallery/` manually get sensible defaults (title from filename, year from file mtime).
+
 
 ## Controls
 
