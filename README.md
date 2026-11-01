@@ -1,6 +1,6 @@
 # Gallery
 
-A virtual walk through the years — a first-person 3D gallery where each circular room (rotunda) represents one year of artworks, chained by corridors from oldest to newest.
+a first-person 3D gallery where each circular room (rotunda) represents one year of artworks, chained by corridors from oldest to newest.
 
 Built with Next.js 14 (Pages Router), React Three Fiber, drei and three.js. No external asset CDNs, no placeholder services — everything renders locally with PBR materials and canvas-generated signage.
 
@@ -9,7 +9,6 @@ Built with Next.js 14 (Pages Router), React Three Fiber, drei and three.js. No e
 - **Walkable + flyable** — WASD to move, Shift to sprint, `F` toggles fly mode (Space up / Shift down), pointer-lock mouse look. Touch devices get a virtual joystick + drag-look.
 - **Rotunda per year** — artworks are grouped by year; rooms are laid out oldest → newest along a corridor spine.
 - **Upload channel** — in-gallery admin panel (bottom-right gear icon): drag-drop images, edit title/year/description inline, reorder, delete. Images also work by dropping files straight into `public/gallery/`.
-- **Real loading** — the entrance screen reports actual asset loading progress before you enter.
 - **Fullscreen viewer** — click any artwork; browse with arrow keys, close with `Esc`.
 
 ## Getting started
